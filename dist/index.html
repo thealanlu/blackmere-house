@@ -20,6 +20,8 @@
     <symbol id="house" viewBox="0 0 32 32"><path d="M3 28h26M7 28V14l9-9 9 9v14M12 28v-7h8v7M16 5V1m-3 3h6M9 13h14M12 16v2m8-2v2" fill="none" stroke="currentColor" stroke-width="1.35"/></symbol>
     <symbol id="arrow" viewBox="0 0 24 24"><path d="M3 12h17m-7-7 7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
     <symbol id="back" viewBox="0 0 24 24"><path d="M21 12H4m7-7-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+    <symbol id="closeIcon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="searchIcon" viewBox="0 0 24 24"><path d="M15.7 15.7 21 21m-3.5-10.5a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
     <symbol id="trophy" viewBox="0 0 24 24"><path d="M7 3h10v6a5 5 0 0 1-10 0zm0 2H3v3a4 4 0 0 0 5 4m9-7h4v3a4 4 0 0 1-5 4m-4 2v5m-5 2h10m-8-2h6" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
     <symbol id="people" viewBox="0 0 24 24"><path d="M13 8a3.7 3.7 0 1 1-7.4 0A3.7 3.7 0 0 1 13 8ZM2 20v-2a7.3 7.3 0 0 1 14.6 0v2m.2-15a3.5 3.5 0 0 1 0 7m1.5 2a5.5 5.5 0 0 1 4.1 5.4" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
     <symbol id="profileIcon" viewBox="0 0 24 24"><path d="M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-1a8 8 0 1 1 16 0v1" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
@@ -63,109 +65,153 @@
       </div><p id="playMessage" class="feedback" aria-live="polite"></p>
     </div>
   </section>
-  <section id="auth" class="screen sub-screen cover" hidden aria-labelledby="authTitle">
-    <div class="panel narrow">
-      <div class="panel-top"><button class="back" data-back><svg><use href="#back"/></svg><span>Back</span></button><span class="eyebrow">BLACKMERE HOUSE</span></div>
-      <p class="eyebrow amber">PLAYER ACCESS</p><h2 id="authTitle">Log in</h2>
-      <p id="authIntro">Sign in to record ranked escapes and connect with friends.</p>
-      <div class="auth-tabs" id="authTabs"><button type="button" class="text-button" data-auth-mode="login">Log in</button><button type="button" class="text-button" data-auth-mode="signup">Sign up</button></div>
-      <form id="authForm" class="account-form">
-        <label>Gamer tag <input id="authName" name="username" pattern="[A-Za-z0-9_]{3,24}" maxlength="24" autocomplete="username" autocapitalize="off" spellcheck="false" required></label>
-        <label>Password <input id="authPassword" name="password" type="password" maxlength="72" autocomplete="current-password" required></label>
-        <button id="authSubmit" type="submit" class="primary"><span>Log in</span><svg><use href="#arrow"/></svg></button>
-      </form>
-      <div class="auth-links"><a id="nativeSignIn" href="/signin-with-chatgpt?returnTo=%2F" target="_top" hidden>Continue with ChatGPT</a></div>
-      <button class="secondary" id="accountLogout" hidden>Log out</button>
-      <p id="authStatus" class="feedback" role="status"></p>
+  <dialog id="auth" class="menu-dialog access-dialog" aria-labelledby="authTitle">
+    <header class="dialog-chrome"><span><svg aria-hidden="true"><use href="#lock"/></svg> Blackmere House <i></i> Player access</span><button type="button" class="dialog-close" data-back aria-label="Close account"><svg aria-hidden="true"><use href="#closeIcon"/></svg></button></header>
+    <div class="access-layout">
+      <aside class="access-art" aria-hidden="true"><svg><use href="#house"/></svg><span>Blackmere House</span><small>Est. 1891</small></aside>
+      <div class="dialog-body">
+        <div class="dialog-intro">
+          <h2 id="authTitle" tabindex="-1">Log in</h2>
+          <p id="authIntro">Sign in with your gamer tag and password.</p>
+        </div>
+        <div class="auth-tabs" id="authTabs" role="group" aria-label="Account action">
+          <button type="button" class="text-button" data-auth-mode="login">Log in</button>
+          <button type="button" class="text-button" data-auth-mode="signup">Sign up</button>
+        </div>
+        <form id="authForm" class="account-form">
+          <label>Gamer tag <input id="authName" name="username" pattern="[A-Za-z0-9_]{3,24}" maxlength="24" autocomplete="username" autocapitalize="off" spellcheck="false" required></label>
+          <label>Password <input id="authPassword" name="password" type="password" maxlength="72" autocomplete="current-password" required></label>
+          <button id="authSubmit" type="submit" class="primary"><span>Log in</span><svg aria-hidden="true"><use href="#arrow"/></svg></button>
+        </form>
+        <p id="authStatus" class="feedback" role="status"></p>
+        <div class="auth-links">
+          <a id="nativeSignIn" href="/signin-with-chatgpt?returnTo=%2F" target="_top" hidden>Continue with ChatGPT</a>
+          <button type="button" class="secondary" id="accountLogout" hidden>Log out</button>
+        </div>
+      </div>
     </div>
-  </section>
-  <section id="leaderboards" class="screen sub-screen cover" hidden aria-labelledby="boardTitle">
-    <div class="panel archive">
-      <div class="panel-top"><button class="back" data-back><svg><use href="#back"/></svg><span>Back</span></button><span class="eyebrow"><i class="live-dot"></i> VERIFIED ESCAPES</span></div>
-      <p class="eyebrow amber">THE BLACKMERE RECORDS</p><h2 id="boardTitle">Leaderboards</h2>
-      <p>Every ranked result is replayed by the server.</p>
-      <form id="boardFilters" class="filters">
-        <label>Ranking <select id="boardMetric"><option value="score">Total score</option><option value="fastest">Fastest escape</option><option value="escapes">Successful escapes</option><option value="rate">Escape rate</option></select></label>
+  </dialog>
+  <dialog id="leaderboards" class="menu-dialog records-dialog" aria-labelledby="boardTitle">
+    <header class="dialog-chrome"><span><svg aria-hidden="true"><use href="#trophy"/></svg> Blackmere House <i></i> The records</span><button type="button" class="dialog-close" data-back aria-label="Close leaderboards"><svg aria-hidden="true"><use href="#closeIcon"/></svg></button></header>
+    <div class="dialog-body">
+      <div class="dialog-intro intro-split">
+        <div><h2 id="boardTitle" tabindex="-1">Leaderboards</h2><p>Compare escapes by score, speed, or consistency.</p></div>
+        <span class="verified-badge"><i></i> Server-verified runs</span>
+      </div>
+      <form id="boardFilters" class="filters board-filters">
+        <label>Rank by <select id="boardMetric"><option value="score">Total score</option><option value="fastest">Fastest escape</option><option value="escapes">Successful escapes</option><option value="rate">Escape rate</option></select></label>
         <label>Period <select id="boardPeriod"><option value="all">All time</option><option value="week">This week</option><option value="month">This month</option></select></label>
         <label>Players <select id="boardScope"><option value="global">Global</option><option value="friends">Friends</option></select></label>
-        <label>Search <input id="boardSearch" type="search" placeholder="Username" maxlength="24"></label>
-        <button class="secondary" type="submit">Apply</button>
+        <label class="board-query">Gamer tag <input id="boardSearch" type="search" placeholder="Search players" maxlength="24"></label>
+        <button class="secondary" type="submit"><svg aria-hidden="true"><use href="#searchIcon"/></svg> Search</button>
       </form>
       <p id="boardStatus" class="feedback" role="status"></p>
       <div id="personalBest" class="record-summary" hidden></div>
-      <div class="table-wrap" tabindex="0" aria-label="Leaderboard results">
-        <table id="rankTable"><thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col">Score</th><th scope="col">Escapes</th><th scope="col">Best time</th><th scope="col">Escape rate</th></tr></thead><tbody id="rankRows"></tbody></table>
+      <div class="dialog-blank" id="boardEmpty" hidden>
+        <svg aria-hidden="true"><use href="#trophy"/></svg>
+        <strong id="boardEmptyTitle">No matching records</strong><p id="boardEmptyDetail" role="status"></p>
       </div>
-      <div class="paging"><button class="text-button" id="boardPrevious">Previous</button><span id="boardPage" class="eyebrow"></span><button class="text-button" id="boardNext">Next</button></div>
+      <div id="boardResults" class="table-wrap" tabindex="0" aria-label="Leaderboard results" hidden>
+        <table id="rankTable" role="table"><thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Rank</th><th scope="col" role="columnheader">Player</th><th scope="col" role="columnheader">Score</th><th scope="col" role="columnheader">Escapes</th><th scope="col" role="columnheader">Best time</th><th scope="col" role="columnheader">Escape rate</th></tr></thead><tbody id="rankRows" role="rowgroup"></tbody></table>
+      </div>
+      <nav class="paging" id="boardPaging" aria-label="Leaderboard pages" hidden><button class="secondary" id="boardPrevious">Previous</button><span id="boardPage" class="eyebrow"></span><button class="secondary" id="boardNext">Next</button></nav>
       <details class="scoring"><summary>How scoring works</summary><p>Escape for 1,000 points on Story, 1,600 on Standard, or 2,400 on Nightmare. Add 100 for each life remaining and 2 for each full second under 10 minutes. A loss earns 0. Escape-rate ranks require five verified games in the selected period. Weeks begin Monday in UTC.</p></details>
     </div>
-  </section>
-  <section id="profile" class="screen sub-screen cover" hidden aria-labelledby="profileTitle">
-    <div class="panel archive">
-      <div class="panel-top"><button class="back" data-back><svg><use href="#back"/></svg><span>Back</span></button><span class="eyebrow">PLAYER RECORD</span></div>
-      <p class="eyebrow amber">BLACKMERE REGISTRY</p><h2 id="profileTitle">My Profile</h2>
+  </dialog>
+  <dialog id="profile" class="menu-dialog records-dialog" aria-labelledby="profileTitle">
+    <header class="dialog-chrome"><span><svg aria-hidden="true"><use href="#profileIcon"/></svg> Blackmere House <i></i> Player record</span><button type="button" class="dialog-close" data-back aria-label="Close profile"><svg aria-hidden="true"><use href="#closeIcon"/></svg></button></header>
+    <div class="dialog-body">
+      <div class="dialog-intro"><h2 id="profileTitle" tabindex="-1">My Profile</h2><p>View escape stats and manage your player record.</p></div>
       <p id="profileStatus" class="feedback" role="status"></p>
-      <button class="secondary" id="profileSignIn" hidden>Log in / Sign up</button>
-      <div id="profileRecord" hidden></div>
-      <form id="profileForm" class="account-form profile-form" hidden>
-        <h3 id="profileFormTitle">Profile settings</h3>
-        <label>Username <input id="profileName" required maxlength="24" pattern="[A-Za-z0-9_]{3,24}" autocomplete="off"></label>
-        <div id="profilePrivacy">
-          <label>Profile visibility <select id="visibility"><option value="public">Public</option><option value="friends">Friends only</option><option value="private">Private</option></select></label>
-          <label class="check"><input type="checkbox" id="allowRequests" checked> Allow incoming friend requests</label>
-          <label>Profile picture <input type="file" id="avatarFile" accept="image/png,image/jpeg,image/webp"></label>
-          <button type="button" class="text-button" id="clearAvatar">Remove profile picture</button>
-        </div>
-        <button class="primary" id="saveProfile" type="submit">Save profile</button>
-      </form>
+      <div class="dialog-blank" id="profileGate" hidden>
+        <svg aria-hidden="true"><use href="#profileIcon"/></svg>
+        <strong>Your record starts here</strong><p>Sign in to build a record of your ranked escapes.</p>
+        <button class="primary" id="profileSignIn">Log in / Sign up</button>
+      </div>
+      <div class="profile-layout">
+        <div id="profileRecord" class="dialog-card" hidden></div>
+        <form id="profileForm" class="account-form profile-form dialog-card" hidden>
+          <h3 id="profileFormTitle">Profile settings</h3>
+          <label>Gamer tag <input id="profileName" required maxlength="24" pattern="[A-Za-z0-9_]{3,24}" autocomplete="off"></label>
+          <div id="profilePrivacy">
+            <label>Profile visibility <select id="visibility"><option value="public">Public</option><option value="friends">Friends only</option><option value="private">Private</option></select></label>
+            <label class="check"><input type="checkbox" id="allowRequests" checked> Allow incoming friend requests</label>
+            <label>Profile picture <input type="file" id="avatarFile" accept="image/png,image/jpeg,image/webp"></label>
+            <button type="button" class="text-button" id="clearAvatar">Remove profile picture</button>
+          </div>
+          <button class="primary" id="saveProfile" type="submit">Save profile</button>
+        </form>
+      </div>
       <details id="deleteAccount" class="danger" hidden><summary>Delete account</summary><form id="deleteForm" class="account-form">
         <p>This removes your player profile, scores, and friendships. It also deletes your gamer-tag login if you used one.</p>
-        <label>Type your username to confirm <input required id="deleteConfirm" maxlength="24" autocomplete="off"></label>
+        <label>Type your gamer tag to confirm <input required id="deleteConfirm" maxlength="24" autocomplete="off"></label>
         <button class="secondary" type="submit">Delete my account</button>
       </form></details>
     </div>
-  </section>
-  <section id="friends" class="screen sub-screen cover" hidden aria-labelledby="friendsTitle">
-    <div class="panel archive">
-      <div class="panel-top"><button class="back" data-back><svg><use href="#back"/></svg><span>Back</span></button><span class="eyebrow">PLAYER NETWORK</span></div>
-      <p class="eyebrow amber">FAMILIAR FACES</p><h2 id="friendsTitle">Friends</h2>
+  </dialog>
+  <dialog id="friends" class="menu-dialog records-dialog" aria-labelledby="friendsTitle">
+    <header class="dialog-chrome"><span><svg aria-hidden="true"><use href="#people"/></svg> Blackmere House <i></i> Player network</span><button type="button" class="dialog-close" data-back aria-label="Close friends"><svg aria-hidden="true"><use href="#closeIcon"/></svg></button></header>
+    <div class="dialog-body">
+      <div class="dialog-intro"><h2 id="friendsTitle" tabindex="-1">Friends</h2><p>Find players, manage requests, and compare your ranked escapes.</p></div>
       <p id="friendsStatus" class="feedback" role="status"></p>
-      <button class="secondary" id="friendsSignIn" hidden>Log in / Sign up</button>
+      <div class="dialog-blank" id="friendsGate" hidden>
+        <svg aria-hidden="true"><use href="#people"/></svg>
+        <strong>Find familiar faces</strong><p>Set up your player profile to connect with friends.</p>
+        <button class="primary" id="friendsSignIn">Log in / Sign up</button>
+      </div>
       <div id="friendsContent" hidden>
-        <form class="filters find-player" id="findPlayers"><label>Find a player <input id="findQuery" required minlength="2" maxlength="24" type="search" placeholder="Username"></label><button class="secondary" type="submit">Search</button></form>
-        <div id="searchPlayers" class="player-list"></div>
+        <form class="filters find-player" id="findPlayers"><label>Find a player <input id="findQuery" required minlength="2" maxlength="24" type="search" placeholder="Enter a gamer tag"></label><button class="secondary" type="submit"><svg aria-hidden="true"><use href="#searchIcon"/></svg> Search</button></form>
+        <div id="searchPlayers" class="player-list dialog-card" aria-live="polite" hidden></div>
         <div class="social-columns">
-          <section><h3>Requests</h3><div id="requestsList" class="player-list"></div></section>
-          <section><h3>Friends list</h3><div id="friendsList" class="player-list"></div><button class="text-button" id="friendBoard">View friends leaderboard</button></section>
+          <section class="dialog-card"><h3>Friend requests <span class="count-chip" id="requestCount" hidden></span></h3><div id="requestsList" class="player-list"></div></section>
+          <section class="dialog-card"><h3>Friends list <span class="count-chip" id="friendsCount" hidden></span></h3><div id="friendsList" class="player-list"></div><button class="text-button" id="friendBoard">View friends leaderboard <svg aria-hidden="true"><use href="#arrow"/></svg></button></section>
         </div>
         <details><summary>Notifications</summary><div id="friendNotes"></div><button class="text-button" id="markNotes">Mark all as read</button></details>
         <details><summary>Blocked players</summary><div id="blocksList" class="player-list"></div></details>
       </div>
     </div>
-  </section>
-  <section id="settings" class="screen sub-screen cover" hidden aria-labelledby="settingsTitle">
-    <div class="panel narrow">
-      <div class="panel-top"><button class="back" data-back><svg><use href="#back"/></svg><span>Back</span></button><span class="eyebrow">BLACKMERE HOUSE</span></div>
-      <p class="eyebrow amber">PREFERENCES</p><h2 id="settingsTitle">Settings</h2>
-      <div class="settings-list">
-        <label>Difficulty <select id="difficulty"><option value="story">Story</option><option value="normal">Standard</option><option value="dread">Nightmare</option></select></label>
-        <p id="levelDescription"></p>
-        <label>Graphics <select id="graphics"><option value="low">Low</option><option value="medium">Balanced</option><option value="high">High</option></select></label>
-        <label>Volume <input id="volume" type="range" min="0" max="1" step=".01"></label>
-        <label>Mouse sensitivity <input id="sensitivity" type="range" min=".25" max="2.5" step=".025"></label>
-        <label class="check setting-check"><span>Camera motion and light flicker</span><input id="motion" type="checkbox"></label>
+  </dialog>
+  <dialog id="settings" class="menu-dialog guide-dialog" aria-labelledby="settingsTitle">
+    <header class="dialog-chrome"><span><svg aria-hidden="true"><use href="#settingsIcon"/></svg> Blackmere House <i></i> Preferences</span><button type="button" class="dialog-close" data-back aria-label="Close settings"><svg aria-hidden="true"><use href="#closeIcon"/></svg></button></header>
+    <div class="dialog-body">
+      <div class="dialog-intro"><h2 id="settingsTitle" tabindex="-1">Settings</h2><p>Set the difficulty and adjust how the house looks, sounds, and feels.</p></div>
+      <div class="dialog-grid">
+        <section class="dialog-card preferences-card">
+          <h3>Gameplay &amp; display</h3>
+          <label class="preference"><span>Difficulty</span><select id="difficulty" aria-describedby="levelDescription"><option value="story">Story</option><option value="normal">Standard</option><option value="dread">Nightmare</option></select></label>
+          <p class="setting-detail" id="levelDescription"></p>
+          <label class="preference"><span>Graphics</span><select id="graphics"><option value="low">Low</option><option value="medium">Balanced</option><option value="high">High</option></select></label>
+          <label class="preference"><span>Camera motion and light flicker</span><input id="motion" type="checkbox"></label>
+        </section>
+        <section class="dialog-card preferences-card">
+          <h3>Audio &amp; controls</h3>
+          <label class="slider-label" for="volume">Volume</label><output id="volumeValue" for="volume"></output>
+          <input id="volume" type="range" min="0" max="1" step=".01">
+          <label class="slider-label" for="sensitivity">Look sensitivity</label><output id="sensitivityValue" for="sensitivity"></output>
+          <input id="sensitivity" type="range" min=".25" max="2.5" step=".025">
+        </section>
       </div>
+      <footer class="dialog-footer"><span>Changes save automatically on this device.</span><button class="primary" data-back>Done</button></footer>
     </div>
-  </section>
-  <section id="controls" class="screen sub-screen cover" hidden aria-labelledby="controlsTitle">
-    <div class="panel narrow">
-      <div class="panel-top"><button class="back" data-back><svg><use href="#back"/></svg><span>Back</span></button><span class="eyebrow">BLACKMERE HOUSE</span></div>
-      <p class="eyebrow amber">SURVIVAL GUIDE</p><h2 id="controlsTitle">How to Play</h2>
-      <p>Find a way out before the end of night five. Each time she catches you, you wake in the bedroom. Items and escape progress carry over.</p>
-      <dl class="controls-list"><dt>Move</dt><dd><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></dd><dt>Look</dt><dd>Mouse <span>or</span> <kbd>←</kbd> <kbd>→</kbd></dd><dt>Sprint</dt><dd><kbd>Shift</kbd></dd><dt>Crouch</dt><dd><kbd>C</kbd> <span>or</span> <kbd>Ctrl</kbd></dd><dt>Interact / hide / use tool</dt><dd><kbd>E</kbd></dd><dt>Choose slot / drop</dt><dd><kbd>1–4</kbd> <kbd>G</kbd></dd><dt>Flashlight / journal</dt><dd><kbd>F</kbd> <kbd>Tab</kbd></dd><dt>Pause</dt><dd><kbd>Esc</kbd> <span>or</span> <kbd>P</kbd></dd></dl>
-      <p class="hint">Aim at drawers and cabinets to open them. Crouching muffles footsteps. Toss a tool to draw her away, then retrieve it once she passes.</p>
+  </dialog>
+  <dialog id="controls" class="menu-dialog guide-dialog" aria-labelledby="controlsTitle">
+    <header class="dialog-chrome"><span><svg aria-hidden="true"><use href="#book"/></svg> Blackmere House <i></i> Survival guide</span><button type="button" class="dialog-close" data-back aria-label="Close how to play"><svg aria-hidden="true"><use href="#closeIcon"/></svg></button></header>
+    <div class="dialog-body">
+      <div class="dialog-intro"><h2 id="controlsTitle" tabindex="-1">How to Play</h2><p>Find a way out before the end of night five. If she catches you, you wake in the bedroom with your items and escape progress.</p></div>
+      <div class="dialog-grid">
+        <section class="dialog-card key-card">
+          <h3>Movement</h3>
+          <dl class="controls-list"><dt>Move</dt><dd><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></dd><dt>Look</dt><dd>Mouse <span>or</span> <kbd>←</kbd> <kbd>→</kbd></dd><dt>Sprint</dt><dd><kbd>Shift</kbd></dd><dt>Crouch</dt><dd><kbd>C</kbd> <span>or</span> <kbd>Ctrl</kbd></dd></dl>
+        </section>
+        <section class="dialog-card key-card">
+          <h3>Actions</h3>
+          <dl class="controls-list"><dt>Interact / hide / use tool</dt><dd><kbd>E</kbd></dd><dt>Choose slot / drop</dt><dd><kbd>1–4</kbd> <kbd>G</kbd></dd><dt>Flashlight / journal</dt><dd><kbd>F</kbd> <kbd>Tab</kbd></dd><dt>Pause</dt><dd><kbd>Esc</kbd> <span>or</span> <kbd>P</kbd></dd></dl>
+        </section>
+      </div>
+      <div class="guide-tip"><svg aria-hidden="true"><use href="#flashIcon"/></svg><div><strong>Stay quiet</strong><p>Crouching muffles your footsteps. Drop a tool to draw her away, then retrieve it once she passes.</p></div></div>
+      <footer class="dialog-footer"><span>On touch screens, drag to look and use the on-screen buttons.</span><button class="primary" data-back>Done</button></footer>
     </div>
-  </section>
+  </dialog>
 
   <section id="playHud" class="screen hud" hidden aria-label="Gameplay HUD">
     <div class="hud-top">

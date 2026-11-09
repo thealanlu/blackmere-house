@@ -119,31 +119,52 @@ export function bindSocial(navigate,isOpen) {
   }
   async function fetchBoard({silent=false}={}) {
     const request=++boardRequest;
-    if(!silent)msg('boardStatus','Loading verified records…');
+    if(!silent){
+      $('boardEmpty').hidden=$('boardResults').hidden=$('boardPaging').hidden=true;
+      msg('boardStatus','Loading verified records…');
+    }
     const p=new URLSearchParams({metric:$('boardMetric').value,period:$('boardPeriod').value,scope:$('boardScope').value,q:$('boardSearch').value,page});
     try{
       const r=await api('leaderboard?'+p);
       if(request!==boardRequest||!isOpen('leaderboards'))return;
       page=r.page;pages=r.pages;
       const rows=r.results.map(p=>{
-        const row=el('tr');
+        const row=el('tr');row.setAttribute('role','row');
         row.classList.toggle('podium',p.rank<=3);
         row.classList.toggle('current',p.id===current.profile?.id);
-        const name=el('td');name.append(playerName(p));
-        row.append(el('td','#'+p.rank),name,el('td',fmt(p.score)),el('td',fmt(p.escapes)),el('td',timeLabel(p.best)),el('td',percentage(p.escapes,p.games)));
+        const rank=el('td','#'+p.rank),name=el('td');
+        name.append(playerName(p));row.append(rank,name);
+        const metrics=[['Score',fmt(p.score)],['Escapes',fmt(p.escapes)],['Best time',timeLabel(p.best)],['Escape rate',percentage(p.escapes,p.games)]];
+        for(const [label,value] of metrics) {
+          const cell=el('td',value),caption=el('span',label,'metric-label');
+          caption.setAttribute('aria-hidden','true');cell.prepend(caption);row.append(cell);
+        }
+        for(const cell of row.cells)cell.setAttribute('role','cell');
         return row;
       });
       $('rankRows').replaceChildren(...rows);
+      $('boardResults').hidden=rows.length===0;
+      $('boardEmpty').hidden=rows.length>0;
+      $('boardPaging').hidden=pages<=1;
       $('boardPage').textContent='PAGE '+page+' OF '+pages;
       $('boardPrevious').disabled=page<=1;$('boardNext').disabled=page>=pages;
       const personal=$('personalBest');
       personal.hidden=!current.profile;
       personal.textContent=r.personal?'Your rank #'+r.personal.rank+' · '+fmt(r.personal.score)+' points · Best escape '+timeLabel(r.personal.best):
         'Your profile has no qualifying result in this view.';
-      msg('boardStatus',rows.length?'':r.metric==='rate'?'No players have five verified games in this view.':'No verified results match this view.');
+      if(!rows.length) {
+        const firstView=p.get('metric')==='score'&&p.get('period')==='all'&&p.get('scope')==='global'&&!p.get('q').trim();
+        const title=firstView?'No ranked escapes yet':'No matching records';
+        const detail=firstView?'Verified escapes will appear here.':r.metric==='rate'?
+          'Players need five verified games to appear in this view.':'Try a different gamer tag, time period, or ranking.';
+        if($('boardEmptyTitle').textContent!==title)$('boardEmptyTitle').textContent=title;
+        if($('boardEmptyDetail').textContent!==detail)$('boardEmptyDetail').textContent=detail;
+      }
+      msg('boardStatus');
     }catch(error){
       if(request!==boardRequest)return;
-      $('rankRows').replaceChildren();$('personalBest').hidden=true;
+      $('rankRows').replaceChildren();
+      $('personalBest').hidden=$('boardEmpty').hidden=$('boardResults').hidden=$('boardPaging').hidden=true;
       $('boardPage').textContent='';$('boardPrevious').disabled=$('boardNext').disabled=true;
       msg('boardStatus',error.message,true);
     }
@@ -172,7 +193,7 @@ export function bindSocial(navigate,isOpen) {
   async function renderProfile() {
     const target=profileTarget;
     $('profileTitle').textContent=target?'Player Profile':'My Profile';
-    $('profileForm').hidden=$('deleteAccount').hidden=$('profileRecord').hidden=$('profileSignIn').hidden=true;
+    $('profileForm').hidden=$('deleteAccount').hidden=$('profileRecord').hidden=$('profileGate').hidden=true;
     avatarPatch=undefined;$('avatarFile').value='';msg('profileStatus','Loading player record…');
     try {
       const r=target?await api('profile/'+encodeURIComponent(target)):await session();
@@ -181,10 +202,10 @@ export function bindSocial(navigate,isOpen) {
       msg('profileStatus');
       if(r.profile)record(r.profile,r.stats,r.rank,r.recent);
       if(target)return;
-      if(!r.user){$('profileSignIn').hidden=false;return msg('profileStatus','Sign in to create a player record.');}
+      if(!r.user){$('profileGate').hidden=false;return;}
       $('profileForm').hidden=false;
       $('profilePrivacy').hidden=$('deleteAccount').hidden=!r.profile;
-      $('profileFormTitle').textContent=r.profile?'Profile settings':'Choose your username';
+      $('profileFormTitle').textContent=r.profile?'Profile settings':'Choose your gamer tag';
       $('saveProfile').textContent=r.profile?'Save profile':'Create profile';
       $('profileName').value=r.profile?.username??r.user.username??'';
       $('visibility').value=r.profile?.visibility??'public';$('allowRequests').checked=r.profile?.allowRequests??true;
@@ -231,19 +252,24 @@ export function bindSocial(navigate,isOpen) {
   }
   async function renderFriends({silent=false}={}) {
     const request=++friendRequest;
-    if(!silent)msg('friendsStatus','Loading friends…');
+    if(!silent){$('friendsGate').hidden=true;msg('friendsStatus','Loading friends…');}
     try {
       if(!silent)await session();
       if(!isOpen('friends')||request!==friendRequest)return;
-      $('friendsSignIn').hidden=Boolean(current.profile);
+      $('friendsGate').hidden=Boolean(current.profile)||!online;
       $('friendsSignIn').textContent=current.user?'Create profile':'Log in / Sign up';
       $('friendsSignIn').onclick=current.user?()=>{profileTarget=null;navigate('profile');}:signIn;
       $('friendsContent').hidden=!current.profile;
-      if(!current.profile)return msg('friendsStatus',online?'A player profile is required to connect with friends.':'Player services are unavailable.');
+      if(!current.profile)return msg('friendsStatus',online?'':'Player services are unavailable.');
       const data=await api('friends');
       if(!isOpen('friends')||request!==friendRequest)return;
-      rows('requestsList',data.friends.filter(p=>p.relationship==='pending'),'No pending requests.');
-      rows('friendsList',data.friends.filter(p=>p.relationship==='accepted'),'No friends added yet.');
+      const requests=data.friends.filter(p=>p.relationship==='pending');
+      const friends=data.friends.filter(p=>p.relationship==='accepted');
+      for(const [id,count] of [['requestCount',requests.length],['friendsCount',friends.length]]) {
+        $(id).hidden=count===0;$(id).textContent=count;
+      }
+      rows('requestsList',requests,'No pending requests.');
+      rows('friendsList',friends,'No friends added yet.');
       rows('blocksList',data.blocks,'No blocked players.',true);
       $('friendNotes').replaceChildren(...data.notifications.map(n=>el('p',(n.seen?'':'• ')+n.username+(n.kind==='request'?' sent a request.':' accepted your request.'))));
       $('markNotes').disabled=!data.notifications.some(n=>!n.seen);
@@ -254,7 +280,9 @@ export function bindSocial(navigate,isOpen) {
   async function find() {
     try{
       const r=await api('players?q='+encodeURIComponent($('findQuery').value));
-      rows('searchPlayers',r.players,'No public profiles match that username.');
+      if(!isOpen('friends'))return;
+      rows('searchPlayers',r.players,'No public profiles match that gamer tag.');
+      $('searchPlayers').hidden=false;
     }catch(e){msg('friendsStatus',e.message,true);}
   }
   $('findPlayers').onsubmit=e=>{e.preventDefault();find();};

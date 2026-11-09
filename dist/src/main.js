@@ -15,7 +15,8 @@ const settings={
   motion:typeof saved.motion==='boolean'?saved.motion:defaults.motion
 };
 const screens=[...document.querySelectorAll('.screen')];
-let view='menu', returnView='menu',game,toastTimer,revealTimer,threatLabel='',lastPrompt='';
+const menuDialogs=new Map([...document.querySelectorAll('.menu-dialog')].map(dialog=>[dialog.id,dialog]));
+let view='menu', returnView='menu',dialogOrigin,game,toastTimer,revealTimer,threatLabel='',lastPrompt='';
 const guestOnly=document.documentElement.dataset.edition==='guest';
 const social=guestOnly?null:bindSocial(navigate,name=>view===name);
 function fatal(error) {
@@ -34,6 +35,8 @@ function updateOptions() {
   $('motion').checked=settings.motion;
   $('playDifficulty').value=settings.difficulty;
   $('levelDescription').textContent=levels[settings.difficulty].caption;
+  $('volumeValue').textContent=Math.round(settings.volume*100)+'%';
+  $('sensitivityValue').textContent=Math.round(settings.sensitivity*100)+'%';
 }
 updateOptions();
 for(const key of Object.keys(settings)) {
@@ -45,12 +48,24 @@ for(const key of Object.keys(settings)) {
   });
 }
 function switchTo(name) {
+  const previous=menuDialogs.get(view),dialog=menuDialogs.get(name);
+  if(previous&&previous!==dialog)previous.close();
   view=name;
-  const display=name==='play'?'playHud':['victory','interlude','defeat'].includes(name)?'result':name;
+  const display=dialog?returnView:name==='play'?'playHud':['victory','interlude','defeat'].includes(name)?'result':name;
   for(const screen of screens)screen.hidden=screen.id!==display;
   if(name!=='caught')$('gameShade').classList.remove('caught');
+  if(dialog) {
+    if(!dialog.open){
+      dialog.scrollTop=0;
+      dialog.showModal();
+      $(dialog.getAttribute('aria-labelledby')).focus({preventScroll:true});
+    }
+    return;
+  }
   if(name==='play')$('game').focus({preventScroll:true});
-  else if(name!=='menu'&&name!=='caught')document.getElementById(display)?.querySelector('button')?.focus({preventScroll:true});
+  else if(previous&&dialogOrigin?.getClientRects().length)dialogOrigin.focus({preventScroll:true});
+  else if(name!=='menu'&&name!=='caught')$(display)?.querySelector('button')?.focus({preventScroll:true});
+  dialogOrigin=null;
 }
 $('game').tabIndex=-1;
 $('game').addEventListener('webglcontextlost',event=>{
@@ -149,9 +164,11 @@ const ui={
     $('rankResult').textContent=data?'Verified · '+data.score.toLocaleString()+' points · '+timeLabel(data.ticks):'Run was not recorded. '+error;
   }
 };
-const subviews=['settings','controls','dispatch','auth','leaderboards','friends','profile'];
 function navigate(name,own=false) {
-  returnView=view==='pause'?'pause':'menu';
+  if(menuDialogs.has(name)&&!menuDialogs.has(view)) {
+    returnView=['pause','dispatch'].includes(view)?view:'menu';
+    dialogOrigin=document.activeElement;
+  }
   switchTo(name);
   social?.open(name,own);
   if(name==='dispatch') {
@@ -166,7 +183,8 @@ function navigate(name,own=false) {
   }
 }
 function back() {
-  if(subviews.includes(view))switchTo(returnView);
+  if(menuDialogs.has(view))switchTo(returnView);
+  else if(view==='dispatch')switchTo('menu');
   else if(['journal','note','pause'].includes(view))game?.resume();
 }
 function setRunDifficulty() {
@@ -191,10 +209,19 @@ if(social)$('rankedPlay').onclick=async()=>{
 };
 for(const button of document.querySelectorAll('[data-open]'))button.addEventListener('click',()=>navigate(button.dataset.open,true));
 for(const button of document.querySelectorAll('[data-back]'))button.addEventListener('click',back);
+for(const dialog of menuDialogs.values()) {
+  dialog.addEventListener('cancel',event=>{event.preventDefault();back();});
+  let pressedBackdrop=false;
+  dialog.addEventListener('pointerdown',event=>{pressedBackdrop=event.target===dialog;});
+  dialog.addEventListener('click',event=>{
+    if(pressedBackdrop&&event.target===dialog)back();
+    pressedBackdrop=false;
+  });
+}
 for(const button of document.querySelectorAll('[data-resume]'))button.addEventListener('click',()=>game?.resume());
 for(const button of document.querySelectorAll('[data-menu]'))button.addEventListener('click',()=>game?.menu());
 document.addEventListener('keydown',event=>{
-  if(event.key==='Escape'&&!event.repeat&&[...subviews,'journal','note'].includes(view)) {
+  if(event.key==='Escape'&&!event.repeat&&['dispatch','journal','note'].includes(view)) {
     event.preventDefault();back();
   }
 });
