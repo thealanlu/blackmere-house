@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Escape Blackmere House in five nights. An original first-person survival horror game with verified escape rankings.">
+  <title>Blackmere House</title>
+  <meta name="theme-color" content="#101413">
+  <link rel="icon" href="/assets/favicon-16.png" type="image/png" sizes="16x16">
+  <link rel="icon" href="/assets/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="/assets/favicon-48.png" type="image/png" sizes="48x48">
+  <link rel="icon" href="/assets/favicon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="/assets/favicon-192.png">
+  <link rel="manifest" href="/blackmere.webmanifest">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <svg class="symbols" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="house" viewBox="0 0 32 32"><path d="M3 28h26M7 28V14l9-9 9 9v14M12 28v-7h8v7M16 5V1m-3 3h6M9 13h14M12 16v2m8-2v2" fill="none" stroke="currentColor" stroke-width="1.35"/></symbol>
+    <symbol id="arrow" viewBox="0 0 24 24"><path d="M3 12h17m-7-7 7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+    <symbol id="back" viewBox="0 0 24 24"><path d="M21 12H4m7-7-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+    <symbol id="trophy" viewBox="0 0 24 24"><path d="M7 3h10v6a5 5 0 0 1-10 0zm0 2H3v3a4 4 0 0 0 5 4m9-7h4v3a4 4 0 0 1-5 4m-4 2v5m-5 2h10m-8-2h6" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+    <symbol id="people" viewBox="0 0 24 24"><path d="M13 8a3.7 3.7 0 1 1-7.4 0A3.7 3.7 0 0 1 13 8ZM2 20v-2a7.3 7.3 0 0 1 14.6 0v2m.2-15a3.5 3.5 0 0 1 0 7m1.5 2a5.5 5.5 0 0 1 4.1 5.4" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+    <symbol id="profileIcon" viewBox="0 0 24 24"><path d="M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-1a8 8 0 1 1 16 0v1" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+    <symbol id="settingsIcon" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18M8 4v4m8 2v4m-7 2v4" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+    <symbol id="book" viewBox="0 0 24 24"><path d="M12 5C8 2 4 3 2 4v15c3-1 7-2 10 1 3-3 7-2 10-1V4c-2-1-6-2-10 1Zm0 0v15" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+    <symbol id="lock" viewBox="0 0 24 24"><path d="M6 11V8a6 6 0 1 1 12 0v3m-14 0h16v10H4zm8 3v4" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+    <symbol id="flashIcon" viewBox="0 0 24 24"><path d="m13 2-8 12h6l-1 8 9-12h-6z" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+  </svg>
+  <canvas id="game" aria-label="Blackmere House first-person view"></canvas>
+  <div id="gameShade"></div>
+  <main id="menu" class="screen cover">
+    <header class="mast"><span class="stamp"><svg><use href="#house"/></svg><span>BLACKMERE<br><b>EST. 1891</b></span></span><span class="edition"><i></i> FIRST-PERSON SURVIVAL HORROR</span></header>
+    <div class="menu-body">
+      <div class="kicker"><span></span> THE CARETAKER IS LISTENING</div>
+      <h1>Blackmere<br><em>House</em></h1>
+      <p class="logline">Five nights to find a way out.<br>Every sound brings her closer.</p>
+      <nav class="menu-actions" aria-label="Main menu">
+        <button id="play" class="primary"><span>Play Game</span><svg><use href="#arrow"/></svg></button>
+        <div class="menu-grid">
+          <button data-open="leaderboards" class="menu-link"><svg><use href="#trophy"/></svg><span>Leaderboards</span></button>
+          <button data-open="friends" class="menu-link"><svg><use href="#people"/></svg><span>Friends</span><small id="notificationBadge" hidden></small></button>
+          <button data-open="profile" class="menu-link"><svg><use href="#profileIcon"/></svg><span>My Profile</span></button>
+          <button data-open="settings" class="menu-link"><svg><use href="#settingsIcon"/></svg><span>Settings</span></button>
+        </div>
+        <div class="menu-bottom"><button data-open="auth" class="text-button" id="accountMenu">Log in / Sign up</button><button data-open="controls" class="text-button">How to Play</button></div>
+      </nav>
+    </div>
+    <footer class="menu-footer"><span>VOL. I <i></i> THE BLACKMERE RECORDS</span><span>HEADPHONES RECOMMENDED</span></footer>
+  </main>
+
+  <section id="dispatch" class="screen sub-screen cover" hidden aria-labelledby="dispatchTitle">
+    <div class="panel narrow">
+      <div class="panel-top"><button class="back" data-back><svg><use href="#back"/></svg><span>Back</span></button><span class="eyebrow">BLACKMERE HOUSE</span></div>
+      <p class="eyebrow amber">CHOOSE YOUR RUN</p><h2 id="dispatchTitle">Enter the House</h2>
+      <label class="dispatch-difficulty">Difficulty <select id="playDifficulty" aria-label="Run difficulty"><option value="story">Story</option><option value="normal">Standard</option><option value="dread">Nightmare</option></select></label>
+      <div class="stack run-choices">
+        <button id="rankedPlay" class="primary"><span>Ranked run</span><svg><use href="#arrow"/></svg></button>
+        <small id="rankedHelp">A player profile is required to record a verified result.</small>
+        <button id="guestPlay" class="secondary">Guest run</button>
+        <small>Play without recording statistics or ranking.</small>
+      </div><p id="playMessage" class="feedback" aria-live="polite"></p>
+    </div>
+  </section>
+  <section id="auth" class="screen sub-screen cover" hidden aria-labelledby="authTitle">
+    <div class="panel narrow">
+      <div class="panel-top"><button class="back" data-back><svg><use href="#back"/></svg><span>Back</span></button><span class="eyebrow">BLACKMERE HOUSE</span></div>
+      <p class="eyebrow amber">PLAYER ACCESS</p><h2 id="authTitle">Log in</h2>
+      <p id="authIntro">Sign in to record ranked escapes and connect with friends.</p>
+      <div class="auth-tabs" id="authTabs"><button type="button" class="text-button" data-auth-mode="login">Log in</button><button type="button" class="text-button" data-auth-mode="signup">Sign up</button></div>
+      <form id="authForm" class="account-form">
+        <label id="authNameLabel" hidden>Username <input id="authName" name="username" pattern="[A-Za-z0-9_]{3,24}" maxlength="24" autocomplete="username"></label>
+        <label id="authEmailLabel">Email <input id="authEmail" name="email" type="email" maxlength="254" autocomplete="email"></label>
+        <label id="authPasswordLabel">Password <input id="authPassword" name="password" type="password" maxlength="72" autocomplete="current-password"></label>
+        <button id="authSubmit" type="submit" class="primary"><span>Log in</span><svg><use href="#arrow"/></svg></button>
+      </form>
+      <div class="auth-links"><button type="button" class="text-button" id="forgot" data-auth-mode="recover">Forgot password?</button><a id="nativeSignIn" href="/signin-with-chatgpt?returnTo=%2F" target="_top" hidden>Continue with ChatGPT</a></div>
+      <button class="secondary" id="accountLogout" hidden>Log out</button>
+      <p id="authStatus" class="feedback" role="status"></p>
+    </div>
+  </section>
+  <section id="leaderboards" class="screen sub-screen cover" hidden aria-labelledby="boardTitle">
+    <div class="panel archive">
+      <div class="panel-top"><button class="back" data-back><svg><use href="#back"/></svg><span>Back</span></button><span class="eyebrow"><i class="live-dot"></i> VERIFIED ESCAPES</span></div>
+      <p class="eyebrow amber">THE BLACKMERE RECORDS</p><h2 id="boardTitle">Leaderboards</h2>
+      <p>Every ranked result is replayed by the server.</p>
+      <form id="boardFilters" class="filters">
+        <label>Ranking <select id="boardMetric"><option value="score">Total score</option><option value="fastest">Fastest escape</option><option value="escapes">Successful escapes</option><option value="rate">Escape rate</option></select></label>
+        <label>Period <select id="boardPeriod"><option value="all">All time</option><option value="week">This week</option><option value="month">This month</option></select></label>
+        <label>Players <select id="boardScope"><option value="global">Global</option><option value="friends">Friends</option></select></label>
+        <label>Search <input id="boardSearch" type="search" placeholder="Username" maxlength="24"></label>
+        <button class="secondary" type="submit">Apply</button>
+      </form>
+      <p id="boardStatus" class="feedback" role="status"></p>
+      <div id="personalBest" class="record-summary" hidden></div>
+      <div class="table-wrap" tabindex="0" aria-label="Leaderboard results">
+        <table id="rankTable"><thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col">Score</th><th scope="col">Escapes</th><th scope="col">Best time</th><th scope="col">Escape rate</th></tr></thead><tbody id="rankRows"></tbody></table>
+      </div>
+      <div class="paging"><button class="text-button" id="boardPrevious">Previous</button><span id="boardPage" class="eyebrow"></span><button class="text-button" id="boardNext">Next</button></div>
+      <details class="scoring"><summary>How scoring works</summary><p>Escape for 1,000 points on Story, 1,600 on Standard, or 2,400 on Nightmare. Add 100 for each life remaining and 2 for each full second under 10 minutes. A loss earns 0. Escape-rate ranks require five verified games in the selected period. Weeks begin Monday in UTC.</p></details>
+    </div>
+  </section>
+  <section id="profile" class="screen sub-screen cover" hidden aria-labelledby="profileTitle">
+    <div class="panel archive">
+      <div class="panel-top"><button class="back" data-back><svg><use href="#back"/></svg><span>Back</span></button><span class="eyebrow">PLAYER RECORD</span></div>
+      <p class="eyebrow amber">BLACKMERE REGISTRY</p><h2 id="profileTitle">My Profile</h2>
+      <p id="profileStatus" class="feedback" role="status"></p>
+      <button class="secondary" id="profileSignIn" hidden>Log in / Sign up</button>
+      <div id="profileRecord" hidden></div>
+      <form id="profileForm" class="account-form profile-form" hidden>
+        <h3 id="profileFormTitle">Profile settings</h3>
+        <label>Username <input id="profileName" required maxlength="24" pattern="[A-Za-z0-9_]{3,24}" autocomplete="off"></label>
+        <div id="profilePrivacy">
+          <label>Profile visibility <select id="visibility"><option value="public">Public</option><option value="friends">Friends only</option><option value="private">Private</option></select></label>
+          <label class="check"><input type="checkbox" id="allowRequests" checked> Allow incoming friend requests</label>
+          <label>Profile picture <input type="file" id="avatarFile" accept="image/png,image/jpeg,image/webp"></label>
+          <button type="button" class="text-button" id="clearAvatar">Remove profile picture</button>
+        </div>
+        <button class="primary" id="saveProfile" type="submit">Save profile</button>
+      </form>
+      <details id="deleteAccount" class="danger" hidden><summary>Delete account</summary><form id="deleteForm" class="account-form">
+        <p>This removes your player profile, scores, and friendships. It also deletes your email login if you used one.</p>
+        <label>Type your username to confirm <input required id="deleteConfirm" maxlength="24" autocomplete="off"></label>
+        <button class="secondary" type="submit">Delete my account</button>
+      </form></details>
+    </div>
+  </section>
+  <section id="friends" class="screen sub-screen cover" hidden aria-labelledby="friendsTitle">
+    <div class="panel archive">
+      <div class="panel-top"><button class="back" data-back><svg><use href="#back"/></svg><span>Back</span></button><span class="eyebrow">PLAYER NETWORK</span></div>
+      <p class="eyebrow amber">FAMILIAR FACES</p><h2 id="friendsTitle">Friends</h2>
+      <p id="friendsStatus" class="feedback" role="status"></p>
+      <button class="secondary" id="friendsSignIn" hidden>Log in / Sign up</button>
+      <div id="friendsContent" hidden>
+        <form class="filters find-player" id="findPlayers"><label>Find a player <input id="findQuery" required minlength="2" maxlength="24" type="search" placeholder="Username"></label><button class="secondary" type="submit">Search</button></form>
+        <div id="searchPlayers" class="player-list"></div>
+        <div class="social-columns">
+          <section><h3>Requests</h3><div id="requestsList" class="player-list"></div></section>
+          <section><h3>Friends list</h3><div id="friendsList" class="player-list"></div><button class="text-button" id="friendBoard">View friends leaderboard</button></section>
+        </div>
+        <details><summary>Notifications</summary><div id="friendNotes"></div><button class="text-button" id="markNotes">Mark all as read</button></details>
+        <details><summary>Blocked players</summary><div id="blocksList" class="player-list"></div></details>
+      </div>
+    </div>
+  </section>
+  <section id="settings" class="screen sub-screen cover" hidden aria-labelledby="settingsTitle">
+    <div class="panel narrow">
+      <div class="panel-top"><button class="back" data-back><svg><use href="#back"/></svg><span>Back</span></button><span class="eyebrow">BLACKMERE HOUSE</span></div>
+      <p class="eyebrow amber">PREFERENCES</p><h2 id="settingsTitle">Settings</h2>
+      <div class="settings-list">
+        <label>Difficulty <select id="difficulty"><option value="story">Story</option><option value="normal">Standard</option><option value="dread">Nightmare</option></select></label>
+        <p id="levelDescription"></p>
+        <label>Graphics <select id="graphics"><option value="low">Low</option><option value="medium">Balanced</option><option value="high">High</option></select></label>
+        <label>Volume <input id="volume" type="range" min="0" max="1" step=".01"></label>
+        <label>Mouse sensitivity <input id="sensitivity" type="range" min=".25" max="2.5" step=".025"></label>
+        <label class="check setting-check"><span>Camera motion and light flicker</span><input id="motion" type="checkbox"></label>
+      </div>
+    </div>
+  </section>
+  <section id="controls" class="screen sub-screen cover" hidden aria-labelledby="controlsTitle">
+    <div class="panel narrow">
+      <div class="panel-top"><button class="back" data-back><svg><use href="#back"/></svg><span>Back</span></button><span class="eyebrow">BLACKMERE HOUSE</span></div>
+      <p class="eyebrow amber">SURVIVAL GUIDE</p><h2 id="controlsTitle">How to Play</h2>
+      <p>Find a way out before the end of night five. Each time she catches you, you wake in the bedroom. Items and escape progress carry over.</p>
+      <dl class="controls-list"><dt>Move</dt><dd><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></dd><dt>Look</dt><dd>Mouse <span>or</span> <kbd>←</kbd> <kbd>→</kbd></dd><dt>Sprint</dt><dd><kbd>Shift</kbd></dd><dt>Crouch</dt><dd><kbd>C</kbd> <span>or</span> <kbd>Ctrl</kbd></dd><dt>Interact / hide / use tool</dt><dd><kbd>E</kbd></dd><dt>Choose slot / drop</dt><dd><kbd>1–4</kbd> <kbd>G</kbd></dd><dt>Flashlight / journal</dt><dd><kbd>F</kbd> <kbd>Tab</kbd></dd><dt>Pause</dt><dd><kbd>Esc</kbd> <span>or</span> <kbd>P</kbd></dd></dl>
+      <p class="hint">Aim at drawers and cabinets to open them. Crouching muffles footsteps. Toss a tool to draw her away, then retrieve it once she passes.</p>
+    </div>
+  </section>
+
+  <section id="playHud" class="screen hud" hidden aria-label="Gameplay HUD">
+    <div class="hud-top">
+      <div class="location"><span class="stamp"><svg><use href="#house"/></svg></span><div><span class="eyebrow" id="hudDay">NIGHT 01 / 05</span><strong id="area">West Bedroom</strong></div></div>
+      <div class="hud-journal"><kbd>Tab</kbd> Journal</div>
+      <div class="touch-top"><button data-touch="journal">Journal</button><button data-touch="pause">Pause</button></div>
+    </div>
+    <div id="nightCard" class="night-card" aria-live="polite"><span class="eyebrow" id="chapterLabel"></span><strong id="chapterName"></strong></div>
+    <span id="reticle" aria-hidden="true"></span>
+    <div id="prompt" class="prompt" hidden><kbd>E</kbd><span></span></div>
+    <div id="mouseHint" class="mouse-hint" hidden>Click to capture the mouse, or hold and drag to look.</div>
+    <div id="toast" class="toast" role="status"></div>
+    <div class="hud-bottom">
+      <div class="status"><span class="eyebrow">STAMINA</span><div class="bar"><i id="stamina"></i></div><span id="threat" class="eyebrow"></span></div>
+      <div id="inventory" class="inventory" aria-label="Inventory"></div>
+      <div class="flash"><svg><use href="#flashIcon"/></svg><span id="flashLabel">LIGHT ON</span><kbd>F</kbd></div>
+    </div>
+    <div class="touch-controls" aria-label="Touch controls">
+      <div class="touch-pad"><button data-touch="KeyW" aria-label="Move forward">↑</button><button data-touch="KeyA" aria-label="Move left">←</button><button data-touch="KeyS" aria-label="Move back">↓</button><button data-touch="KeyD" aria-label="Move right">→</button></div>
+      <div class="touch-actions"><button data-touch="KeyE">Use</button><button data-touch="ShiftLeft">Run</button><button data-touch="KeyC">Crouch</button><button data-touch="KeyF">Light</button><button data-touch="KeyG">Drop</button></div>
+    </div>
+  </section>
+  <section id="pause" class="screen overlay" hidden>
+    <div class="panel narrow end">
+      <p class="eyebrow amber">BLACKMERE HOUSE</p><h2>Paused</h2>
+      <div class="stack"><button class="primary" data-resume>Resume <svg><use href="#arrow"/></svg></button><button class="secondary" data-open="settings">Settings</button><button class="text-button" data-menu>Abandon run</button></div>
+    </div>
+  </section>
+  <section id="journal" class="screen overlay" hidden>
+    <div class="panel narrow journal">
+      <div class="panel-top"><button class="back" data-resume><svg><use href="#back"/></svg><span>Back</span></button><span class="eyebrow" id="journalNight">NIGHT 01 / 05</span></div>
+      <p class="eyebrow amber">ESCAPE ROUTES</p><h2>Field Journal</h2>
+      <div id="objectives"></div>
+    </div>
+  </section>
+  <section id="note" class="screen overlay" hidden>
+    <div class="panel narrow note">
+      <div class="panel-top"><button class="back" data-resume><svg><use href="#back"/></svg><span>Put it down</span></button><span class="eyebrow">FOUND IN BLACKMERE</span></div>
+      <h2 id="noteTitle"></h2><p id="noteText"></p>
+    </div>
+  </section>
+  <section id="result" class="screen sub-screen cover" hidden>
+    <div class="panel narrow end">
+      <p class="eyebrow amber" id="resultLabel"></p><h2 id="resultTitle"></h2><p id="resultText"></p><p id="rankResult" class="feedback" role="status"></p>
+      <div class="stack"><button class="primary" id="resultNext"><span></span><svg><use href="#arrow"/></svg></button><button class="text-button" data-menu>Return to title</button></div>
+    </div>
+  </section>
+  <div id="fatal" class="fatal" role="alert" hidden></div>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

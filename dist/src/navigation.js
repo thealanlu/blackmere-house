@@ -1,0 +1,88 @@
+import {bounds} from './rules.js';
+
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const gap=.5,cols=56,rows=52;
+let grid;
+
+export function navigation(world) {
+  const doorBlocks=new Set(world.doors.filter(d=>d.kind==='door'&&!d.secret).map(d=>d.blocker));
+  function blocked(x,z,r=.23,navigating=false) {
+    if(x-r<bounds.x0||x+r>bounds.x1||z-r<bounds.z0||z+r>bounds.z1)return true;
+    return world.solid.some(o=>{
+      if(o.enabled===false||(navigating&&doorBlocks.has(o)))return false;
+      const dx=x-clamp(x,o.x-o.dx/2,o.x+o.dx/2),dz=z-clamp(z,o.z-o.dz/2,o.z+o.dz/2);
+      return dx*dx+dz*dz<r*r;
+    });
+  }
+  function clear(ax,az,bx,bz) {
+    const dx=bx-ax,dz=bz-az,steps=Math.ceil(Math.hypot(dx,dz)/.14);
+    for(let i=1;i<steps;i++)if(blocked(ax+dx*i/steps,az+dz*i/steps,.035))return false;
+    return true;
+  }
+  function move(body,dx,dz,r=.23) {
+    if(!blocked(body.x+dx,body.z,r))body.x+=dx;
+    if(!blocked(body.x,body.z+dz,r))body.z+=dz;
+  }
+  const point=i=>[bounds.x0+(i%cols+.5)*gap,bounds.z0+(Math.floor(i/cols)+.5)*gap];
+  const staticGrid=grid??=Array.from({length:cols*rows},(_,i)=>{
+    const [x,z]=point(i);
+    return world.solid.some(o=>o.enabled===undefined&&Math.hypot(
+      x-clamp(x,o.x-o.dx/2,o.x+o.dx/2),z-clamp(z,o.z-o.dz/2,o.z+o.dz/2))<.29);
+  });
+  const special=world.doors.filter(d=>!doorBlocks.has(d.blocker)).map(d=>d.blocker);
+  function occupied(i) {
+    if(i<0||i>=cols*rows||staticGrid[i])return true;
+    const [x,z]=point(i);
+    return special.some(o=>o.enabled&&Math.abs(o.x-x)<o.dx/2+.23&&Math.abs(o.z-z)<o.dz/2+.23);
+  }
+  function nearest(x,z) {
+    const cx=clamp(Math.floor((x-bounds.x0)/gap),0,cols-1),cz=clamp(Math.floor((z-bounds.z0)/gap),0,rows-1);
+    for(let r=0;r<=5;r++) {
+      let best=-1,dist=Infinity;
+      for(let a=Math.max(0,cx-r);a<=Math.min(cols-1,cx+r);a++) for(let b=Math.max(0,cz-r);b<=Math.min(rows-1,cz+r);b++) {
+        const i=b*cols+a;
+        if(occupied(i))continue;
+        const [px,pz]=point(i),d=(x-px)**2+(z-pz)**2;
+        if(d<dist){best=i;dist=d;}
+      }
+      if(best>=0)return best;
+    }
+    return -1;
+  }
+  function path(ax,az,bx,bz) {
+    const start=nearest(ax,az),end=nearest(bx,bz);
+    if(start<0||end<0)return [];
+    const [ex,ez]=point(end);
+    const scores=new Float32Array(cols*rows).fill(Infinity);
+    const visited=new Uint8Array(cols*rows),parent=new Int16Array(cols*rows).fill(-1);
+    const open=[[start,0]];
+    scores[start]=0;
+    let reached=false;
+    while(open.length) {
+      let best=0;
+      for(let k=1;k<open.length;k++)if(open[k][1]<open[best][1])best=k;
+      const i=open[best][0];open[best]=open[open.length-1];open.pop();
+      if(visited[i])continue;
+      if(i===end){reached=true;break;}
+      visited[i]=1;
+      const x=i%cols,z=Math.floor(i/cols);
+      for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]) {
+        if(x+dx<0||x+dx>=cols||z+dz<0||z+dz>=rows)continue;
+        const j=i+dx+dz*cols;
+        if(visited[j]||occupied(j)||(dx&&dz&&(occupied(i+dx)||occupied(i+dz*cols))))continue;
+        const score=scores[i]+(dx&&dz?1.4142135:1);
+        if(score>=scores[j])continue;
+        const [px,pz]=point(j);
+        scores[j]=score;parent[j]=i;
+        open.push([j,score+Math.hypot(px-ex,pz-ez)/gap]);
+      }
+    }
+    if(!reached)return [];
+    const route=[];
+    for(let i=end;i!==start;i=parent[i])route.push(point(i));
+    route.reverse();
+    if(!blocked(bx,bz,.28,true))route.push([bx,bz]);
+    return route;
+  }
+  return {blocked,clear,move,path};
+}

@@ -1,0 +1,16 @@
+Blackmere House · Third-party notices
+
+Three.js r169
+Copyright 2010–2024 Three.js Authors
+MIT License. See vendor/THREE-LICENSE.txt.
+https://github.com/mrdoob/three.js
+
+Google MediaPipe canonical geometry
+Copyright Google LLC
+Apache License, Version 2.0. See vendor/CANONICAL-GEOMETRY-LICENSE.txt.
+Canonical topology was converted to arrays and reshaped into the Caretaker mesh.
+https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/modules/face_geometry/data/canonical_face_model.obj
+
+Title art and the Caretaker's baked skin material
+Created for Blackmere House using OpenAI image generation and original 3D
+material authoring. Both depict the fictional caretaker of Blackmere House.

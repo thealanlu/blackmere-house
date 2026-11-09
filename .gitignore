@@ -1,0 +1,9 @@
+.DS_Store
+node_modules/
+/dist/server/
+/dist/.openai/
+/server/assets.generated.js
+/.env
+/.env.*
+!/.env.example
+/*.sqlite*
