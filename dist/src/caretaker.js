@@ -13,7 +13,7 @@ const lace=material(0x494239);
 const buckle=material(0x6b5740,{metalness:.75,roughness:.4});
 const metal=material(0x343e3e,{metalness:.82,roughness:.37});
 const shoe=material(0x1b1716);
-const faceMat=new T.MeshPhysicalMaterial({color:0xf5f0ec,roughness:.81,specularIntensity:.38,bumpMap:skinDetail,bumpScale:.0038,side:T.DoubleSide});
+const faceMat=new T.MeshPhysicalMaterial({color:0xb9aba8,roughness:.85,specularIntensity:.31,bumpMap:skinDetail,bumpScale:.0038,side:T.DoubleSide});
 const sphere=new T.SphereGeometry(1,22,16);
 
 function mesh(g,m,parent,x=0,y=0,z=0) {
@@ -171,49 +171,50 @@ function buildEye(root,loop) {
   return mesh(g,eyeMat,root);
 }
 
+function crownPoint(a,t) {
+  const comb=a+.36*sin(t*PI)*cos(a*.5)**2;
+  const front=Math.max(cos(comb),0),q=cos(t*PI/2);
+  const hairline=.066+.105*front**1.7+.005*sin(comb*5)+.004*cos(comb*7);
+  return v3(sin(comb)*.149*q+.009*t,hairline*q+.221*sin(t*PI/2)-.045*sin(PI*t),
+    -.102+cos(comb)*(.119+.019*front)*q-.020*t);
+}
 function crown(root) {
-  const c=Object.assign(document.createElement('canvas'),{width:256,height:128});
-  const paint=c.getContext('2d');paint.fillStyle='#8a8071';paint.fillRect(0,0,256,128);
-  for(let i=0;i<380;i++){
-    const x=(i*137.3)%256;
-    paint.strokeStyle=i%5?'#4c494063':'#d9d0c052';paint.lineWidth=.35+i%4*.14;
+  const c=Object.assign(document.createElement('canvas'),{width:512,height:128});
+  const paint=c.getContext('2d');paint.fillStyle='#4b4c4a';paint.fillRect(0,0,512,128);
+  for(let i=0;i<850;i++){
+    const x=(i*137.3)%512;
+    paint.strokeStyle=i%5?'#1f242470':'#d0c7b76e';paint.lineWidth=.36+i%4*.18;
     paint.beginPath();paint.moveTo(x,128);paint.quadraticCurveTo(x-3*sin(i),57,x+4*cos(i),0);paint.stroke();
   }
   const texture=new T.CanvasTexture(c);texture.colorSpace=T.SRGBColorSpace;
-  const g=new T.BufferGeometry(),positions=[],uv=[],indices=[],count=80,rows=12;
+  const g=new T.BufferGeometry(),positions=[],uv=[],indices=[],count=84,rows=14;
   for(let j=0;j<=rows;j++)for(let i=0;i<=count;i++){
-    const a=i/count*PI*2,t=j/rows,front=Math.max(cos(a),0),q=cos(t*PI/2);
-    const hairline=.056+.111*front**1.7+.009*sin(a*3)+.005*cos(a*7);
-    positions.push(sin(a)*.147*q+.008*t,hairline*q+.222*sin(t*PI/2)-.043*sin(PI*t),-.105+cos(a)*(.123+.023*front)*q-.017*t);
+    const t=j/rows;
+    positions.push(...crownPoint(i/count*PI*2,t).toArray());
     uv.push(i/count,t);
     const k=positions.length/3-1;
     if(i&&j)indices.push(k-count-2,k-count-1,k,k-count-2,k,k-1);
   }
   g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));
   g.setIndex(indices);g.computeVertexNormals();
-  mesh(g,material(0xb5ada0,{map:texture,bumpMap:texture,bumpScale:.0014,side:T.DoubleSide}),root);
+  mesh(g,material(0x989c9c,{map:texture,bumpMap:texture,bumpScale:.0012,side:T.DoubleSide}),root);
 }
 function groom(root) {
   const sets=hair.map(()=>({points:[],faces:[]}));
-  for(let i=0;i<152;i++) {
-    const angle=i/152*PI*2, s=sin(angle), c=cos(angle), front=Math.max(c,0);
-    const fly=.008*sin(i*8.24),flock=.012*sin(angle*5)+fly;
-    const path=new T.CatmullRomCurve3([
-      v3(s*.141,.054+flock+front*.107,-.104+c*.115),
-      v3(s*.143,.143+flock,-.109+c*.115),
-      v3(s*.089,.216+flock*.64,-.123+c*.082),
-      v3(s*.056,.167,-.187+c*.039),
-      v3(s*.055,.071,-.222+c*.023)
-    ]);
-    const set=sets[i%sets.length],samples=18;
+  for(let i=0;i<160;i++) {
+    const angle=i/160*PI*2,fly=.0048*sin(i*8.24);
+    const set=sets[i%sets.length],samples=16;
     for(let k=0;k<=samples;k++){
-      const t=k/samples,p=path.getPoint(t),tangent=path.getTangent(t);
-      const radial=v3(p.x,p.y-.09,p.z+.10).normalize();
-      const side=tangent.cross(radial).normalize();
-      const width=(.0029+Math.abs(fly)*.21)*(.28+.72*sin(PI*t)**.62);
+      const t=k/samples*.87,a=angle+fly*12*t;
+      const p=crownPoint(a,t),side=crownPoint(a+.01,t).sub(p).normalize();
+      const along=crownPoint(a,t+.008).sub(p).normalize();
+      const normal=side.clone().cross(along).normalize();
+      const radial=v3(p.x,p.y-.104,p.z+.100);
+      if(normal.dot(radial)<0)normal.negate();
+      const width=(.0012+Math.abs(fly)*.21)*(.45+.55*sin(PI*k/samples));
       const n=set.points.length/3;
       for(const across of [-1,0,1]){
-        const q=p.clone().addScaledVector(side,across*width).addScaledVector(radial,across===0?.0017:0);
+        const q=p.clone().addScaledVector(side,across*width).addScaledVector(normal,Math.max(.0005,.0018+fly*.33)+(across===0?.0011:0));
         set.points.push(...q.toArray());
       }
       if(k)set.faces.push(n-3,n,n-2,n,n+1,n-2,n-2,n+1,n-1,n+1,n+2,n-1);
@@ -239,7 +240,7 @@ function buildHead(parent) {
     ellipsoid(root,buckle,s*.148,-.058,-.088,.0065,.009,.0055);
   }
   eyesLoops.forEach(loop=>eyes.push(buildEye(root,loop)));
-  const hairBase=ellipsoid(root,hair[0],0,.128,-.119,.143,.095,.094);
+  const hairBase=ellipsoid(root,hair[0],0,.124,-.125,.137,.091,.088);
   hairBase.rotation.x=-.2;
   const bun=ellipsoid(root,hair[1],.006,.065,-.224,.067,.062,.044);
   bun.rotation.z=.14;

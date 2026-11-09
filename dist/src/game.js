@@ -269,7 +269,7 @@ export function createGame(canvas,ui,settings) {
     const a=sim.state.brain.actor,dx=a.x-player.x,dz=a.z-player.z,distance=Math.hypot(dx,dz);
     const facing=(-Math.sin(cameraYaw)*dx-Math.cos(cameraYaw)*dz)/(distance||1);
     const close=distance<3&&facing>.66&&nav.clear(player.x,player.z,a.x,a.z);
-    const beam=close?clamp(.08+.11*distance*distance,.13,1):1;
+    const beam=close?clamp(.047+.095*distance*distance,.105,1):1;
     flashlight.intensity=damp(flashlight.intensity,(sim.state.flash&&player.hidden===null?48:mode==='caught'?31:0)*beam,17,dt);
     fill.intensity=player.hidden!==null?.26:1.25;
     dust.position.y=Math.sin(time*.47)*.21;
