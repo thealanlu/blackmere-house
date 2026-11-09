@@ -1,0 +1,37 @@
+name: Deploy game to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build the guest edition
+        run: node scripts/pages.mjs
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: .pages
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish the game
+        id: deployment
+        uses: actions/deploy-pages@v4

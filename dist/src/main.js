@@ -16,7 +16,8 @@ const settings={
 };
 const screens=[...document.querySelectorAll('.screen')];
 let view='menu', returnView='menu',game,toastTimer,revealTimer,threatLabel='',lastPrompt='';
-const social=bindSocial(navigate,name=>view===name);
+const guestOnly=document.documentElement.dataset.edition==='guest';
+const social=guestOnly?null:bindSocial(navigate,name=>view===name);
 function fatal(error) {
   console.error(error);
   const box=$('fatal');
@@ -143,7 +144,7 @@ const ui={
   mouseHint(show){$('mouseHint').hidden=!show;},
   hide(active){$('gameShade').classList.toggle('hide',active);},
   rankResult(data,error) {
-    if(data)social.afterResult();
+    if(data)social?.afterResult();
     if(!['victory','defeat'].includes(view))return;
     $('rankResult').textContent=data?'Verified · '+data.score.toLocaleString()+' points · '+timeLabel(data.ticks):'Run was not recorded. '+error;
   }
@@ -152,10 +153,11 @@ const subviews=['settings','controls','dispatch','auth','leaderboards','friends'
 function navigate(name,own=false) {
   returnView=view==='pause'?'pause':'menu';
   switchTo(name);
-  social.open(name,own);
+  social?.open(name,own);
   if(name==='dispatch') {
     $('playDifficulty').value=settings.difficulty;
     $('playMessage').textContent='';
+    if(!social)return;
     const update=()=>{
       $('rankedPlay').firstElementChild.textContent=social.profile?'Ranked run':social.user?'Create a profile to play ranked':'Log in to play ranked';
       $('rankedHelp').textContent=social.profile?'Verified runs count toward your record.':'A player profile is required to record a verified result.';
@@ -174,7 +176,7 @@ function setRunDifficulty() {
 }
 $('play').onclick=()=>navigate('dispatch');
 $('guestPlay').onclick=()=>{setRunDifficulty();createGameOnce()?.begin();};
-$('rankedPlay').onclick=async()=>{
+if(social)$('rankedPlay').onclick=async()=>{
   if(!social.profile)return navigate(social.user?'profile':'auth',true);
   setRunDifficulty();
   const button=$('rankedPlay');button.disabled=true;
@@ -196,4 +198,4 @@ document.addEventListener('keydown',event=>{
     event.preventDefault();back();
   }
 });
-social.initialize();
+social?.initialize();

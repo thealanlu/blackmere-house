@@ -180,3 +180,11 @@ details summary{cursor:pointer}
 .inventory{pointer-events:auto}.hud-bottom{bottom:156px}.toast{bottom:205px}.slot{width:34px;height:36px}.hud-bottom .status{min-width:52px}.bar{width:48px}
 }
 @media(max-width:620px){.social-columns{grid-template-columns:1fr}.archive .panel-top .eyebrow{font-size:.57rem;letter-spacing:.09em}.archive .filters label{flex-basis:104px}.menu-grid .menu-link{padding:8px 9px;font-size:.77rem}}
+
+.pages-only{display:none}
+html[data-edition="guest"] [data-online-only]{display:none!important}
+html[data-edition="guest"] .pages-only{display:inline}
+html[data-edition="guest"] .menu-grid{grid-template-columns:1fr}
+html[data-edition="guest"] .menu-bottom a{text-underline-offset:.2em}
+html[data-edition="guest"] #guestPlay{background:#c6a778;border-color:#dfbf8e;color:#171812;font-weight:660}
+html[data-edition="guest"] #guestPlay:hover{background:#e0c79d}

@@ -7,12 +7,12 @@
   <meta name="description" content="Escape Blackmere House in five nights. An original first-person survival horror game with verified escape rankings.">
   <title>Blackmere House</title>
   <meta name="theme-color" content="#101413">
-  <link rel="icon" href="/assets/favicon-16.png" type="image/png" sizes="16x16">
-  <link rel="icon" href="/assets/favicon-32.png" type="image/png" sizes="32x32">
-  <link rel="icon" href="/assets/favicon-48.png" type="image/png" sizes="48x48">
-  <link rel="icon" href="/assets/favicon-192.png" type="image/png" sizes="192x192">
-  <link rel="apple-touch-icon" href="/assets/favicon-192.png">
-  <link rel="manifest" href="/blackmere.webmanifest">
+  <link rel="icon" href="assets/favicon-16.png" type="image/png" sizes="16x16">
+  <link rel="icon" href="assets/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="assets/favicon-48.png" type="image/png" sizes="48x48">
+  <link rel="icon" href="assets/favicon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="assets/favicon-192.png">
+  <link rel="manifest" href="blackmere.webmanifest">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -39,12 +39,12 @@
       <nav class="menu-actions" aria-label="Main menu">
         <button id="play" class="primary"><span>Play Game</span><svg><use href="#arrow"/></svg></button>
         <div class="menu-grid">
-          <button data-open="leaderboards" class="menu-link"><svg><use href="#trophy"/></svg><span>Leaderboards</span></button>
-          <button data-open="friends" class="menu-link"><svg><use href="#people"/></svg><span>Friends</span><small id="notificationBadge" hidden></small></button>
-          <button data-open="profile" class="menu-link"><svg><use href="#profileIcon"/></svg><span>My Profile</span></button>
+          <button data-online-only data-open="leaderboards" class="menu-link"><svg><use href="#trophy"/></svg><span>Leaderboards</span></button>
+          <button data-online-only data-open="friends" class="menu-link"><svg><use href="#people"/></svg><span>Friends</span><small id="notificationBadge" hidden></small></button>
+          <button data-online-only data-open="profile" class="menu-link"><svg><use href="#profileIcon"/></svg><span>My Profile</span></button>
           <button data-open="settings" class="menu-link"><svg><use href="#settingsIcon"/></svg><span>Settings</span></button>
         </div>
-        <div class="menu-bottom"><button data-open="auth" class="text-button" id="accountMenu">Log in / Sign up</button><button data-open="controls" class="text-button">How to Play</button></div>
+        <div class="menu-bottom"><button data-online-only data-open="auth" class="text-button" id="accountMenu">Log in / Sign up</button><button data-open="controls" class="text-button">How to Play</button><a class="text-button pages-only" href="https://blackmere-house.thealanlu.chatgpt.site/">Accounts &amp; leaderboards ↗</a></div>
       </nav>
     </div>
     <footer class="menu-footer"><span>VOL. I <i></i> THE BLACKMERE RECORDS</span><span>HEADPHONES RECOMMENDED</span></footer>
@@ -56,9 +56,9 @@
       <p class="eyebrow amber">CHOOSE YOUR RUN</p><h2 id="dispatchTitle">Enter the House</h2>
       <label class="dispatch-difficulty">Difficulty <select id="playDifficulty" aria-label="Run difficulty"><option value="story">Story</option><option value="normal">Standard</option><option value="dread">Nightmare</option></select></label>
       <div class="stack run-choices">
-        <button id="rankedPlay" class="primary"><span>Ranked run</span><svg><use href="#arrow"/></svg></button>
-        <small id="rankedHelp">A player profile is required to record a verified result.</small>
-        <button id="guestPlay" class="secondary">Guest run</button>
+        <button data-online-only id="rankedPlay" class="primary"><span>Ranked run</span><svg><use href="#arrow"/></svg></button>
+        <small data-online-only id="rankedHelp">A player profile is required to record a verified result.</small>
+        <button id="guestPlay" class="secondary"><span class="pages-only">Begin run</span><span data-online-only>Guest run</span></button>
         <small>Play without recording statistics or ranking.</small>
       </div><p id="playMessage" class="feedback" aria-live="polite"></p>
     </div>

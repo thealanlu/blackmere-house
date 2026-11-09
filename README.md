@@ -44,6 +44,12 @@ A verified escape earns 1,000 points on Story, 1,600 on Standard, or 2,400 on Ni
 
 The browser sends movement, look and action inputs in sequence. The server assigns the seed, starts its own clock, replays collision and interactions using the shared simulation, and derives the finish, elapsed time, deaths, and score. It rejects malformed inputs, out-of-order batches, impossible elapsed times, and attempts belonging to another account. Repeated delivery of the same batch is safe. Valid scripted inputs are a remaining form of automation.
 
+## GitHub Pages
+
+The public [GitHub Pages edition](https://thealanlu.github.io/blackmere-house/) runs the full guest game, including both escape routes and touch controls. It links to the hosted edition for accounts, friends, and rankings.
+
+Run `node scripts/pages.mjs` to generate the static site in `.pages/`. The Pages workflow publishes it whenever changes land on `main`.
+
 ## Deploy
 
 `npm run build` produces an ES module Worker at `dist/server/index.js` with the game assets bundled into it. The server expects a Cloudflare D1 binding called `DB`. Apply the SQL migrations in `drizzle/` to the target database. The Sites hosting manifest selects the Worker build and D1 binding. Sites assigns the project ID on registration.
