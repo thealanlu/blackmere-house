@@ -12,10 +12,10 @@ async function api(request,env,url) {
     if(origin!==url.origin&&origin!==env.AUTH_ORIGIN)fail(403,'Cross-site requests are unavailable.');
   }
   if(!env.DB)fail(503,'Player services are temporarily unavailable.');
-  if(url.pathname==='/api/config'&&method==='GET')return json({email:supabaseEnabled(env),chatgpt:env.PLATFORM_AUTH==='1'});
+  if(url.pathname==='/api/config'&&method==='GET')return json({passwordAccounts:supabaseEnabled(env),chatgpt:env.PLATFORM_AUTH==='1'});
   if(url.pathname.startsWith('/api/auth/')&&method==='POST')return authRoute(request,env,url.pathname.slice(10));
   const user=await identity(request,env);
-  const profile=user&&!user.recovery?await profileFor(env.DB,user):null;
+  const profile=await profileFor(env.DB,user);
   if(url.pathname==='/api/runs'||url.pathname.startsWith('/api/runs/'))return runs(request,env,url,profile);
   if(url.pathname==='/api/leaderboard')await limit(env.DB,'board:'+(user?.subject??request.headers.get('cf-connecting-ip')??'local'),80);
   return players(request,env,url,user,profile);

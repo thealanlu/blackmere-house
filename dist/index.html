@@ -70,12 +70,11 @@
       <p id="authIntro">Sign in to record ranked escapes and connect with friends.</p>
       <div class="auth-tabs" id="authTabs"><button type="button" class="text-button" data-auth-mode="login">Log in</button><button type="button" class="text-button" data-auth-mode="signup">Sign up</button></div>
       <form id="authForm" class="account-form">
-        <label id="authNameLabel" hidden>Username <input id="authName" name="username" pattern="[A-Za-z0-9_]{3,24}" maxlength="24" autocomplete="username"></label>
-        <label id="authEmailLabel">Email <input id="authEmail" name="email" type="email" maxlength="254" autocomplete="email"></label>
-        <label id="authPasswordLabel">Password <input id="authPassword" name="password" type="password" maxlength="72" autocomplete="current-password"></label>
+        <label>Gamer tag <input id="authName" name="username" pattern="[A-Za-z0-9_]{3,24}" maxlength="24" autocomplete="username" autocapitalize="off" spellcheck="false" required></label>
+        <label>Password <input id="authPassword" name="password" type="password" maxlength="72" autocomplete="current-password" required></label>
         <button id="authSubmit" type="submit" class="primary"><span>Log in</span><svg><use href="#arrow"/></svg></button>
       </form>
-      <div class="auth-links"><button type="button" class="text-button" id="forgot" data-auth-mode="recover">Forgot password?</button><a id="nativeSignIn" href="/signin-with-chatgpt?returnTo=%2F" target="_top" hidden>Continue with ChatGPT</a></div>
+      <div class="auth-links"><a id="nativeSignIn" href="/signin-with-chatgpt?returnTo=%2F" target="_top" hidden>Continue with ChatGPT</a></div>
       <button class="secondary" id="accountLogout" hidden>Log out</button>
       <p id="authStatus" class="feedback" role="status"></p>
     </div>
@@ -120,7 +119,7 @@
         <button class="primary" id="saveProfile" type="submit">Save profile</button>
       </form>
       <details id="deleteAccount" class="danger" hidden><summary>Delete account</summary><form id="deleteForm" class="account-form">
-        <p>This removes your player profile, scores, and friendships. It also deletes your email login if you used one.</p>
+        <p>This removes your player profile, scores, and friendships. It also deletes your gamer-tag login if you used one.</p>
         <label>Type your username to confirm <input required id="deleteConfirm" maxlength="24" autocomplete="off"></label>
         <button class="secondary" type="submit">Delete my account</button>
       </form></details>

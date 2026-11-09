@@ -9,8 +9,8 @@ const el=(tag,text,cls)=>{
 };
 const msg=(id,text='',error=false)=>{$(id).textContent=text;$(id).toggleAttribute('data-error',error);};
 const savedSession={
-  get(){try{return localStorage.getItem('blackmere.emailSession')==='1';}catch{return false;}},
-  set(on){try{if(on)localStorage.setItem('blackmere.emailSession','1');else localStorage.removeItem('blackmere.emailSession');}catch{}}
+  get(){try{return localStorage.getItem('blackmere.passwordSession')==='1';}catch{return false;}},
+  set(on){try{if(on)localStorage.setItem('blackmere.passwordSession','1');else localStorage.removeItem('blackmere.passwordSession');}catch{}}
 };
 const fmt=n=>new Intl.NumberFormat().format(n??0);
 export function timeLabel(ticks){
@@ -47,7 +47,7 @@ export function bindSocial(navigate,isOpen) {
   async function session() {
     try{
       current=await api('me');
-      if(!current.user&&savedSession.get()&&config.email){
+      if(!current.user&&savedSession.get()&&config.passwordAccounts){
         const r=await api('auth/refresh',{method:'POST',retry:false}).catch(()=>null);
         if(r?.signedIn)current=await api('me',{retry:false});
         else savedSession.set(false);
@@ -62,32 +62,23 @@ export function bindSocial(navigate,isOpen) {
   function showAuth(next=authMode,preserveStatus=false) {
     authMode=next;
     if(!preserveStatus)msg('authStatus');
-    const signed=current.user?.provider==='supabase'&&next!=='reset';
+    const signed=current.user?.provider==='supabase';
     const native=current.user?.provider==='chatgpt';
-    const form=Boolean(config.email&&!signed);
-    $('authTabs').hidden=signed||!form||next==='reset';
+    const form=Boolean(config.passwordAccounts&&!signed);
+    $('authTabs').hidden=!form;
     $('authForm').hidden=!form;
     $('accountLogout').hidden=!signed&&!native;
-    $('nativeSignIn').hidden=!config.chatgpt||native||signed||next==='reset';
-    $('forgot').hidden=!form||next!=='login';
-    $('authNameLabel').hidden=next!=='signup';
-    $('authName').required=next==='signup';
-    $('authEmailLabel').hidden=next==='reset';
-    $('authEmail').required=next!=='reset';
-    $('authPasswordLabel').hidden=next==='recover';
-    $('authPassword').required=next!=='recover';
+    $('nativeSignIn').hidden=!config.chatgpt||native||signed;
     $('authPassword').minLength=next==='login'?1:10;
     $('authPassword').autocomplete=next==='login'?'current-password':'new-password';
     $('authPassword').value='';
-    const text={login:'Log in',signup:'Create account',recover:'Send reset link',reset:'Set new password'}[next];
+    const text=next==='signup'?'Create account':'Log in';
     $('authTitle').textContent=signed?'Your account':text;
     $('authSubmit').firstElementChild.textContent=text;
-    $('authIntro').textContent=signed?'Your email account is signed in. Open My Profile to edit your player details.':
-      !form?'Email accounts are unavailable on this host. Guest play is available.':
-      next==='signup'?'Choose a username. Open the verification link in this browser to finish.':
-      next==='recover'?'Open the reset link in this browser to choose a new password.':
-      next==='reset'?'Choose a new password for your Blackmere House account.':
-      'Sign in to record ranked escapes and connect with friends.';
+    $('authIntro').textContent=signed?'You’re signed in. Open My Profile to edit your player details.':
+      !form?'Player accounts are unavailable on this host. Guest play is available.':
+      next==='signup'?'Choose a gamer tag and password. Save your password somewhere safe.':
+      'Sign in with your gamer tag and password.';
     for(const b of document.querySelectorAll('.auth-tabs [data-auth-mode]'))b.toggleAttribute('aria-current',b.dataset.authMode===next);
   }
   for(const b of document.querySelectorAll('[data-auth-mode]'))b.addEventListener('click',()=>showAuth(b.dataset.authMode));
@@ -95,15 +86,10 @@ export function bindSocial(navigate,isOpen) {
     e.preventDefault();
     const mode=authMode,button=$('authSubmit');
     button.disabled=true;msg('authStatus','Working…');
-    const d={email:$('authEmail').value,password:$('authPassword').value,username:$('authName').value};
+    const d={password:$('authPassword').value,username:$('authName').value};
     try {
-      const r=await api('auth/'+mode,{method:'POST',data:d});
-      if(r.verification)msg('authStatus','Check your inbox and open the verification link in this browser.');
-      else if(r.sent)msg('authStatus','If that address has an account, a reset link will arrive shortly.');
-      else if(r.updated){savedSession.set(false);await session();showAuth('login');msg('authStatus','Password updated. Log in again.');}
-      else {
-        savedSession.set(true);await session();profileTarget=null;navigate('profile');
-      }
+      await api('auth/'+mode,{method:'POST',data:d});
+      savedSession.set(true);await session();profileTarget=null;navigate('profile');
     }catch(error){msg('authStatus',error.message,true);}
     finally {button.disabled=false;$('authPassword').value='';}
   });
@@ -115,24 +101,13 @@ export function bindSocial(navigate,isOpen) {
       }
       await api('auth/logout',{method:'POST'});
       savedSession.set(false);
-      await session();showAuth('login');msg('authStatus','Signed out of your email account.');
+      await session();showAuth('login');msg('authStatus','Signed out of your player account.');
     }catch(e){msg('authStatus',e.message,true);}
     finally{b.disabled=false;}
   };
   async function initialize() {
     try{config=await api('config');}catch{}
-    const u=new URL(location.href),code=u.searchParams.get('code');
-    const error=u.searchParams.get('error_description');
-    if(code||error) {
-      history.replaceState(null,'',u.pathname);
-      try {
-        if(error)throw new Error('The email link was invalid or expired. Request a new one.');
-        const r=await api('auth/session',{method:'POST',data:{code}});
-        savedSession.set(true);
-        await session();authMode=r.recovery?'reset':'login';
-        navigate(r.recovery?'auth':'profile');
-      }catch(e){await session();navigate('auth');msg('authStatus',e.message,true);}
-    }else {await session();if(isOpen('auth'))showAuth(authMode,true);}
+    await session();if(isOpen('auth'))showAuth(authMode,true);
   }
 
   function playerName(p,click=true) {
@@ -207,7 +182,6 @@ export function bindSocial(navigate,isOpen) {
       if(r.profile)record(r.profile,r.stats,r.rank,r.recent);
       if(target)return;
       if(!r.user){$('profileSignIn').hidden=false;return msg('profileStatus','Sign in to create a player record.');}
-      if(r.user.recovery){authMode='reset';return navigate('auth');}
       $('profileForm').hidden=false;
       $('profilePrivacy').hidden=$('deleteAccount').hidden=!r.profile;
       $('profileFormTitle').textContent=r.profile?'Profile settings':'Choose your username';
@@ -304,7 +278,7 @@ export function bindSocial(navigate,isOpen) {
 
   return {initialize,session,
     open(name,own=false) {
-      if(name==='auth'){showAuth();session().then(()=>{if(isOpen('auth')&&!$('authEmail').value)showAuth(authMode,true);});}
+      if(name==='auth'){showAuth();session().then(()=>{if(isOpen('auth')&&!$('authName').value)showAuth(authMode,true);});}
       if(name==='profile'){if(own)profileTarget=null;renderProfile();}
       if(name==='leaderboards'){page=1;fetchBoard();}
       if(name==='friends'){renderFriends();}

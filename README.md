@@ -32,9 +32,8 @@ On a touch device, drag the scene to look around and use the on-screen controls.
 
 ## Player accounts
 
-Supabase Auth handles email sign-up, confirmation, sign-in, and password resets. Blackmere keeps password tokens in secure HTTP-only cookies on HTTPS. Email links use PKCE and must be opened in the browser where the player requested the link. Sites installations can also offer ChatGPT sign-in.
-
-Create a profile after signing in. Usernames are unique regardless of case. Profiles support a picture, public or restricted visibility, friend request preferences, and account deletion. Players can send, cancel, decline or accept requests, remove friends, and block or unblock players. Blocking removes the relationship and prevents contact and mutual profile access. Notifications refresh while the friends panel is open.
+Choose a gamer tag and password to create your profile and start playing ranked. Gamer tags are unique regardless of case. Supabase Auth manages passwords, and the game keeps session tokens in secure HTTP-only cookies on HTTPS. Store your password safely because the game has no email-based recovery. Sites installations can also offer ChatGPT sign-in.
+Profiles support a picture, public or restricted visibility, friend request preferences, and account deletion. Players can send, cancel, decline or accept requests, remove friends, and block or unblock players. Blocking removes the relationship and prevents contact and mutual profile access. Notifications refresh while the friends panel is open.
 
 Rankings cover total points, fastest escape, number of escapes, and escape rate. Filter by calendar week, calendar month, all time, or friends. Escape rate requires five completed verified games. Guests and abandoned runs do not contribute to these statistics.
 
@@ -58,12 +57,12 @@ Configure these runtime values on the host.
 
 | Variable | Purpose |
 | --- | --- |
-| `SUPABASE_URL` | Supabase project URL for email/password authentication |
+| `SUPABASE_URL` | Supabase project URL for gamer-tag accounts |
 | `SUPABASE_PUBLISHABLE_KEY` | Project’s publishable key |
-| `AUTH_ORIGIN` | Canonical HTTPS game origin for email redirects and same-origin checks |
+| `AUTH_ORIGIN` | Canonical HTTPS game origin for same-origin checks |
 | `PLATFORM_AUTH` | Set to `1` only on Sites when its trusted identity headers are available |
 
-In Supabase Authentication, set the Site URL to the game URL with a trailing slash. Enable email confirmation and configure a production SMTP sender for delivery to players outside the Supabase organization. Run [the self-service deletion migration](server/supabase-delete.sql) in the dedicated project’s SQL editor. It allows a signed-in user to delete only their own Supabase login. The Worker handles the associated profile and statistics deletion.
+In the dedicated Supabase project, enable new user signups and turn off **Confirm email**. The server creates a random internal login identifier for each player. Players only enter their gamer tag and password. Run [the self-service deletion migration](server/supabase-delete.sql) in the dedicated project’s SQL editor. It allows a signed-in user to delete only their own Supabase login. The Worker handles the associated profile and statistics deletion.
 
 Never place a service-role key in the game code. The integration uses the publishable key and the signed-in player's access token.
 
@@ -75,6 +74,6 @@ Never place a service-role key in the game code. The integration uses the publis
 - `server/` contains authentication, profile, social and ranking endpoints.
 - `drizzle/` holds the production schema. `scripts/sqlite.mjs` provides a local SQLite adapter for development and tests.
 
-Run `npm run build && npm test` to check both escape routes, enemy behavior, replay validation, account routes, and social permissions. The authentication suite uses a controlled Supabase response fixture. Live email delivery depends on the project's SMTP setup.
+Run `npm run build && npm test` to check both escape routes, enemy behavior, replay validation, account routes, and social permissions. The authentication suite uses a controlled Supabase response fixture.
 
 See [third-party notices](dist/third-party-notices.txt) for asset attribution.

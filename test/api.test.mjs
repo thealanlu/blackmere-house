@@ -91,17 +91,31 @@ test('server rejects impossible submissions and records only the replay-verified
   }finally{DB.close();}
 });
 
-test('password and verification flows use Supabase sessions, PKCE, and HttpOnly cookies',async(t)=>{
+test('gamer-tag signup signs in immediately and login follows a renamed tag',async(t)=>{
   const h=harness({SUPABASE_URL:'https://auth.invalid',SUPABASE_PUBLISHABLE_KEY:'test-publishable'});
-  const user={id:'test-user',email_confirmed_at:'2026-01-01',user_metadata:{username:'Verified'}};
+  const user={id:'test-user'};
   const tokens={access_token:'test.access.jwt.abcdefgh',refresh_token:'test_refresh_012345678',expires_in:3600,user};
-  const calls=[];
-  t.mock.method(globalThis,'fetch',async (url,options)=>{
+  const password='a-strong-test-password';
+  const paths=[];
+  t.mock.method(globalThis,'fetch',async(url,options)=>{
     assert.ok(url.startsWith('https://auth.invalid/'));
+    assert.equal(options.redirect,'manual');
     const u=new URL(url),data=options.body?JSON.parse(options.body):null;
-    calls.push([u.pathname,u.search,data]);
-    if(u.pathname==='/auth/v1/signup'||u.pathname==='/auth/v1/recover')return Response.json({ok:true});
-    if(u.pathname==='/auth/v1/token')return Response.json(tokens);
+    paths.push(u.pathname);
+    if(u.pathname==='/auth/v1/signup') {
+      assert.match(data.email,/^bh-[a-f0-9-]{36}@blackmere\.invalid$/);
+      assert.equal(data.password,password);
+      assert.equal(data.code_challenge,undefined);
+      user.email=data.email;
+      return Response.json(tokens);
+    }
+    if(u.pathname==='/auth/v1/token') {
+      if(u.searchParams.get('grant_type')==='password') {
+        assert.equal(data.email,user.email);
+        if(data.password!==password)return Response.json({error_code:'invalid_credentials'},{status:400});
+      }else assert.equal(data.refresh_token,tokens.refresh_token);
+      return Response.json(tokens);
+    }
     if(u.pathname==='/auth/v1/user')return Response.json(user);
     return Response.json(null);
   });
@@ -116,21 +130,26 @@ test('password and verification flows use Supabase sessions, PKCE, and HttpOnly 
     return r;
   };
   try {
-    const email='test@example.invalid',password='a-strong-test-password';
-    assert.equal((await send('auth/signup',{email,password,username:'Verified'})).data.verification,true);
-    assert.equal(calls[0][2].code_challenge_method,'s256');
-    assert.ok(jar.has('bm_pkce'));
-    assert.equal((await send('auth/session',{code:'invalid-looking-but-test'})).status,200);
+    const create=await send('auth/signup',{username:'Lantern42',password});
+    assert.equal(create.status,200);
+    assert.deepEqual(create.data,{signedIn:true});
     assert.ok(jar.has('bm_access'));
-    assert.equal(jar.has('bm_pkce'),false);
-    assert.equal((await send('profile',{username:'Verified'})).status,201);
+    const me=(await send('me',undefined,'GET')).data;
+    assert.equal(me.profile.username,'Lantern42');
+    assert.equal(me.profile.password_login,undefined);
+    assert.equal((await send('auth/signup',{username:'lantern42',password})).status,409);
+    assert.equal((await send('profile',{username:'Lantern43',visibility:'public',allowRequests:true},'PATCH')).status,200);
     assert.equal((await send('auth/logout')).status,200);
     assert.equal(jar.has('bm_access'),false);
-    assert.equal((await send('auth/login',{email,password})).data.signedIn,true);
+    assert.equal((await send('auth/login',{username:'Lantern42',password})).status,401);
+    assert.equal((await send('auth/login',{username:'Lantern43',password:'wrong-password'})).status,401);
+    assert.equal((await send('auth/login',{username:'lantern43',password})).data.signedIn,true);
     assert.equal((await send('auth/refresh')).data.signedIn,true);
-    assert.equal((await send('auth/recover',{email})).data.sent,true);
-    assert.equal((await send('auth/session',{code:'another-test-code'})).data.recovery,true);
-    assert.equal((await send('auth/reset',{password})).data.updated,true);
-    assert.equal(jar.has('bm_access'),false);
+    assert.equal((await send('auth/recover',{})).status,404);
+    assert.equal((await send('auth/session',{})).status,404);
+    assert.equal((await send('profile',{confirm:'Lantern43'},'DELETE')).status,200);
+    assert.equal((await send('auth/login',{username:'Lantern43',password})).status,401);
+    assert.equal(paths.filter(p=>p==='/auth/v1/signup').length,1);
+    assert.ok(paths.includes('/rest/v1/rpc/blackmere_delete_my_account'));
   }finally{h.DB.close();}
 });

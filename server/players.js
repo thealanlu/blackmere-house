@@ -86,13 +86,13 @@ function avatarValue(value) {
 export async function players(request,env,url,user,profile) {
   const db=env.DB,id=profile?.id??'', path=url.pathname.slice(5), method=request.method;
   if(path==='me'&&method==='GET') {
-    if(!profile)return json({profile:null,user:user?{provider:user.provider,username:user.username,recovery:user.recovery}:null});
+    if(!profile)return json({profile:null,user:user?{provider:user.provider,username:user.username}:null});
     const [summary,rank,notifications,recent]=await Promise.all([
       stats(db,id),board(db,new URL('https://example.invalid/?metric=score'),profile),
       one(db,'SELECT COUNT(*) AS count FROM notifications WHERE owner=? AND seen=0',id),
       many(db,'SELECT route,ticks,score,finished_at FROM results WHERE player=? ORDER BY finished_at DESC LIMIT 8',id)
     ]);
-    return json({profile:view(profile),user:{provider:user.provider,recovery:user.recovery},stats:summary,rank:rank.personal?.rank??null,notifications:notifications.count,recent});
+    return json({profile:view(profile),user:{provider:user.provider},stats:summary,rank:rank.personal?.rank??null,notifications:notifications.count,recent});
   }
   if(path==='leaderboard'&&method==='GET')return json(await board(db,url,profile));
   const match=/^(profile|avatar)\/([0-9a-f-]{36})$/.exec(path);
@@ -109,7 +109,6 @@ export async function players(request,env,url,user,profile) {
     return json({profile:view(p),stats:await stats(db,p.id),rank:rank.personal?.rank??null});
   }
   if(!user)fail(401,'Sign in to continue.');
-  if(user.recovery)fail(403,'Finish resetting your password first.');
   if(path==='profile'&&method==='POST') {
     await limit(db,'profile:'+user.subject,12);
     if(profile)fail(409,'Your profile already exists.');
