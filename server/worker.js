@@ -3,6 +3,7 @@ import {HttpError,fail,json,limit} from './http.js';
 import {identity,authRoute,supabaseEnabled} from './auth.js';
 import {players,profileFor} from './players.js';
 import {runs} from './runs.js';
+import {multiplayer,exchange} from './multiplayer.js';
 
 async function api(request,env,url) {
   const method=request.method;
@@ -14,9 +15,12 @@ async function api(request,env,url) {
   if(!env.DB)fail(503,'Player services are temporarily unavailable.');
   if(url.pathname==='/api/config'&&method==='GET')return json({passwordAccounts:supabaseEnabled(env),chatgpt:env.PLATFORM_AUTH==='1'});
   if(url.pathname.startsWith('/api/auth/')&&method==='POST')return authRoute(request,env,url.pathname.slice(10));
+  const seat=/^\/api\/multiplayer\/([A-HJ-NP-Z2-9]{6})\/exchange$/.exec(url.pathname);
+  if(seat&&method==='POST')return exchange(request,env,seat[1]);
   const user=await identity(request,env);
   const profile=await profileFor(env.DB,user);
   if(url.pathname==='/api/runs'||url.pathname.startsWith('/api/runs/'))return runs(request,env,url,profile);
+  if(url.pathname==='/api/multiplayer'||url.pathname.startsWith('/api/multiplayer/'))return multiplayer(request,env,url,profile);
   if(url.pathname==='/api/leaderboard')await limit(env.DB,'board:'+(user?.subject??request.headers.get('cf-connecting-ip')??'local'),80);
   return players(request,env,url,user,profile);
 }

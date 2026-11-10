@@ -8,14 +8,15 @@ export const action={use:1,drop:2,crouch:4,light:8,wake:16};
 const emptyProgress=()=>({cut:false,unlock:false,power:false,handle:false});
 const emptyPlayer=()=>({x:SPAWN.x,z:SPAWN.z,crouch:false,hidden:null,yaw:SPAWN.yaw,pitch:-.015,eye:1.66});
 const interval=(x,t)=>x+(t-x)*(1-Math.exp(-12*TICK));
+const seatFields=['stamina','tired','step','flash','hiddenFrom','inventory','selected'];
 
-export function createSimulation(seed,difficulty,saved=null,notify=()=>{}) {
+export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=null) {
   if(!Object.hasOwn(levels,difficulty))throw new Error('Unknown difficulty');
   const state=saved??{
     tick:0,rng:seed>>>0,day:1,mode:'play',route:null,player:emptyPlayer(),brain:{actor:{x:0,z:0}},
     progress:emptyProgress(),inventory:[],selected:0,flying:[],stamina:1,tired:false,step:0,flash:true,hiddenFrom:null
   };
-  const player=state.player;
+  let player=state.player;
   const solid=blueprint.solid.map(o=>({...o}));
   const objects=blueprint.objects.map((o,index)=>({...o,index,blocker:o.blocker===undefined?null:solid[o.blocker]}));
   const doors=objects.filter(o=>o.blocker);
@@ -43,6 +44,7 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{}) {
   }
   function toggleDoor(d,open,fromEnemy=false) {
     if(d.open===open||(!open&&Math.hypot(player.x-d.x,player.z-d.z)<.55))return;
+    if(!open&&party?.occupied(d))return;
     d.open=open;d.blocker.enabled=!open;
     if(open) {
       const origin=fromEnemy?state.brain.actor:player;
@@ -64,20 +66,24 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{}) {
   }
   function caught(position) {
     if(state.mode!=='play')return;
+    if(party){party.caught(position);return;}
     state.mode=state.day===5?'defeat':'interlude';
     emit('attack',position);notify('caught',position);
   }
   function win(route) {
+    if(party){party.escape(route);return;}
     state.mode='victory';state.route=route;
     notify('victory',{route,day:state.day});
   }
-  if(saved) {
-    for(const [i,patch] of saved.objects) {
+  function restoreWorld(patches) {
+    for(const [i,patch] of patches) {
       Object.assign(objects[i],patch);
       if(objects[i].blocker)objects[i].blocker.enabled=!objects[i].open;
     }
     solid[blueprint.gate].enabled=!state.progress.handle;
-  } else {
+  }
+  if(saved)restoreWorld(saved.objects);
+  else {
     for(const it of items) {
       const spots=blueprint.itemSpots[it.id],entry=spots[Math.floor(random()*spots.length)];
       const s=typeof entry==='number'?objects[entry]:entry;
@@ -170,10 +176,12 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{}) {
     const o=target(),p=state.progress;
     if(!o)return;
     if(o.kind==='door') {
+      if(party?.locked(o.index))return issue('The Caretaker bolted this door.');
       toggleDoor(o,!o.open);
       if(o.secret&&o.open)issue('A passage opens behind the shelves.');
     }
     if(o.kind==='hide') {
+      if(party?.hiding(o.index))return issue('Someone is already hiding here.');
       state.hiddenFrom={x:player.x,z:player.z,yaw:player.yaw,pitch:player.pitch};
       Object.assign(player,{hidden:o.index,x:o.anchor[0],z:o.anchor[1],yaw:Math.PI+o.yaw,pitch:o.type==='bed'?.016:-.06});
       if(o.panels)setContainer(o,false);
@@ -211,13 +219,7 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{}) {
   }
 
   // Input is [held keys, look yaw in milliradians, look pitch, actions, slot].
-  function tick([keys,yaw,pitch,actions,slot]) {
-    if(state.mode==='defeat'||state.mode==='victory')return;
-    if(state.mode==='interlude') {
-      if(!(actions&action.wake))return;
-      state.day++;startNight();return;
-    }
-    state.tick++;
+  function control([keys,yaw,pitch,actions,slot]) {
     player.yaw=Math.atan2(Math.sin(player.yaw+yaw/1000),Math.cos(player.yaw+yaw/1000));
     player.pitch=clamp(player.pitch+pitch/1000,-1.43,1.43);
     if(slot>=0)state.selected=slot;
@@ -226,32 +228,52 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{}) {
     if(actions&action.use)interact();
     if(state.mode!=='play')return;
     if(actions&action.drop)drop();
-    const moveX=Number(Boolean(keys&key.right))-Number(Boolean(keys&key.left));
-    const moveZ=Number(Boolean(keys&key.forward))-Number(Boolean(keys&key.back));
-    const moving=!hidden()&&Boolean(moveX||moveZ);
-    const sprint=moving&&!player.crouch&&!state.tired&&moveZ>=0&&Boolean(keys&key.sprint);
-    state.stamina=clamp(state.stamina+(sprint?-.23:.155)*TICK,0,1);
-    if(state.stamina===0)state.tired=true;
-    if(state.stamina>.36)state.tired=false;
-    let travelled=0;
-    if(moving) {
-      const len=Math.hypot(moveX,moveZ), speed=sprint?4.21:player.crouch?1.21:2.32;
-      const oldX=player.x,oldZ=player.z;
-      nav.move(player,(moveX*Math.cos(player.yaw)-moveZ*Math.sin(player.yaw))*speed*TICK/len,
-        (-moveX*Math.sin(player.yaw)-moveZ*Math.cos(player.yaw))*speed*TICK/len);
-      travelled=Math.hypot(player.x-oldX,player.z-oldZ);
-      if(travelled>TICK*.25) {
-        state.step-=TICK;
-        if(state.step<=0) {
-          state.step=sprint?.31:player.crouch?.71:.49;
-          emit('step',player,sprint?10.5:player.crouch?1.55:4.8);
-        }
+    const {travelled,sprint}=moveSurvivor(player,state,nav,keys);
+    if(travelled>TICK*.25) {
+      state.step-=TICK;
+      if(state.step<=0) {
+        state.step=sprint?.31:player.crouch?.71:.49;
+        emit('step',player,sprint?10.5:player.crouch?1.55:4.8);
       }
     }
     player.eye=interval(player.eye,floorY(player.x,player.z)+(hidden()?(hidden().type==='bed'?.33:1.44):player.crouch?1.03:1.66));
+    return {travelled,sprint};
+  }
+
+  function tick(input) {
+    if(state.mode==='defeat'||state.mode==='victory')return;
+    if(state.mode==='interlude') {
+      if(!(input[3]&action.wake))return;
+      state.day++;startNight();return;
+    }
+    state.tick++;
+    const movement=control(input);
+    if(state.mode!=='play')return;
     updateDrops();
     enemy.update(TICK,{...player,hidden:hidden()});
-    return {travelled,sprint};
+    return movement;
+  }
+
+  function controlSeat(seat,input) {
+    player=seat.body;
+    for(const field of seatFields)state[field]=seat[field];
+    try {return control(input);}
+    finally {
+      for(const field of seatFields)seat[field]=state[field];
+      player=state.player;
+    }
+  }
+
+  function tickHouse(candidates) {
+    state.tick++;
+    updateDrops();
+    if(!candidates)return;
+    const target=enemy.chooseTarget(candidates);
+    if(!target)return;
+    party.target(target);
+    enemy.update(TICK,target);
+    // Co-op captures immobilize one survivor while the others stay in play.
+    if(state.brain.state==='attack'&&state.brain.recovering===undefined)enemy.recover();
   }
 
   function snapshot() {
@@ -261,5 +283,24 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{}) {
       return [];
     })};
   }
-  return {state,world,nav,tick,target,prompt,snapshot};
+  return {state,world,nav,tick,target,prompt,snapshot,controlSeat,tickHouse,toggleDoor,restoreWorld};
+}
+
+export function moveSurvivor(player,state,nav,keys) {
+  const moveX=Number(Boolean(keys&key.right))-Number(Boolean(keys&key.left));
+  const moveZ=Number(Boolean(keys&key.forward))-Number(Boolean(keys&key.back));
+  const moving=player.hidden===null&&Boolean(moveX||moveZ);
+  const sprint=moving&&!player.crouch&&!state.tired&&moveZ>=0&&Boolean(keys&key.sprint);
+  state.stamina=clamp(state.stamina+(sprint?-.23:.155)*TICK,0,1);
+  if(state.stamina===0)state.tired=true;
+  if(state.stamina>.36)state.tired=false;
+  let travelled=0;
+  if(moving) {
+    const len=Math.hypot(moveX,moveZ), speed=sprint?4.21:player.crouch?1.21:2.32;
+    const oldX=player.x,oldZ=player.z;
+    nav.move(player,(moveX*Math.cos(player.yaw)-moveZ*Math.sin(player.yaw))*speed*TICK/len,
+      (-moveX*Math.sin(player.yaw)-moveZ*Math.cos(player.yaw))*speed*TICK/len);
+    travelled=Math.hypot(player.x-oldX,player.z-oldZ);
+  }
+  return {travelled,sprint};
 }

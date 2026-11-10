@@ -14,6 +14,7 @@
   <link rel="apple-touch-icon" href="assets/favicon-192.png">
   <link rel="manifest" href="blackmere.webmanifest">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="multiplayer.css">
 </head>
 <body>
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg">
@@ -39,7 +40,8 @@
       <h1>Blackmere<br><em>House</em></h1>
       <p class="logline">Five nights to find a way out.<br>Every sound brings her closer.</p>
       <nav class="menu-actions" aria-label="Main menu">
-        <button id="play" class="primary"><span>Play Game</span><svg><use href="#arrow"/></svg></button>
+        <button id="play" class="primary"><span>Single Player</span><svg><use href="#arrow"/></svg></button>
+        <button id="multiplayerPlay" class="secondary multiplayer-menu"><svg aria-hidden="true"><use href="#people"/></svg><span>Multiplayer</span><small>ONLINE</small></button>
         <div class="menu-grid">
           <button data-online-only data-open="leaderboards" class="menu-link"><svg><use href="#trophy"/></svg><span>Leaderboards</span></button>
           <button data-online-only data-open="friends" class="menu-link"><svg><use href="#people"/></svg><span>Friends</span><small id="notificationBadge" hidden></small></button>
@@ -63,6 +65,74 @@
         <button id="guestPlay" class="secondary"><span class="pages-only">Begin run</span><span data-online-only>Guest run</span></button>
         <small>Play without recording statistics or ranking.</small>
       </div><p id="playMessage" class="feedback" aria-live="polite"></p>
+    </div>
+  </section>
+  <section id="multiplayer" class="screen sub-screen cover" hidden aria-labelledby="multiplayerTitle">
+    <div class="panel mp-panel">
+      <header class="panel-top"><button class="back" data-back><svg aria-hidden="true"><use href="#back"/></svg> Back</button><span class="eyebrow">BLACKMERE HOUSE <i></i> ONLINE</span></header>
+      <div class="mp-hero"><div><p class="eyebrow amber">THE MIDNIGHT WATCH</p><h2 id="multiplayerTitle">Multiplayer</h2><p id="mpIntro">Escape together, or take the Caretaker’s place.</p></div><span class="verified-badge"><i></i> Live rooms</span></div>
+      <p class="feedback" id="mpStatus" role="status"></p>
+      <div id="mpGate" class="dialog-blank" hidden><strong>Sign in to enter the house.</strong><p>Use your gamer tag to join friends, keep your records, and reconnect to your match.</p><button type="button" class="primary" data-open="auth">Log in / Sign up</button></div>
+      <div id="mpDirectory" hidden>
+        <div class="mp-tabs" aria-label="Multiplayer sections"><button class="secondary" id="mpRoomsTab" aria-pressed="true">Rooms</button><button class="secondary" id="mpRecordsTab" aria-pressed="false">Records</button></div>
+        <div id="mpRooms" class="mp-columns">
+          <section class="dialog-card mp-actions"><p class="eyebrow amber">01 / FIND A MATCH</p><h3>Choose your side</h3>
+            <label>Mode <select id="mpMode"><option value="pvp">Survivors vs. Granny</option><option value="coop">Co-op vs. AI</option></select></label>
+            <p id="mpModeDetail">One Caretaker. Up to four Survivors.</p>
+            <button id="mpQuick" class="primary" type="button">Quick Match <svg aria-hidden="true"><use href="#arrow"/></svg></button>
+            <form id="mpJoin"><label for="mpCode">Room code</label><div class="mp-inline"><input id="mpCode" maxlength="6" pattern="[A-HJ-NP-Za-hj-np-z2-9]{6}" placeholder="6 characters" autocomplete="off" autocapitalize="characters" spellcheck="false" required><button type="submit" class="secondary">Join</button></div></form>
+          </section>
+          <section class="dialog-card mp-actions"><p class="eyebrow amber">02 / HOST A MATCH</p><h3>Open a room</h3>
+            <form id="mpCreate">
+              <label>Access <select id="mpAccess"><option value="private">Invite code only</option><option value="public">Public room</option></select></label>
+              <label>Time limit <select id="mpMinutes"><option value="6">6 minutes</option><option value="8" selected>8 minutes</option><option value="10">10 minutes</option></select></label>
+              <label>Co-op difficulty <select id="mpDifficulty"><option value="story">Story</option><option value="normal" selected>Standard</option><option value="dread">Nightmare</option></select></label>
+              <label>Allow proximity voice <input id="mpVoiceRoom" type="checkbox"></label>
+              <button class="secondary" type="submit">Create Room</button>
+            </form>
+          </section>
+          <section class="dialog-card mp-wide"><div class="mp-section-title"><h3>Open rooms</h3><button type="button" class="text-button" id="mpRefresh">Refresh</button></div><ul id="mpPublic" class="mp-list"></ul><h3>Friend invitations</h3><ul id="mpInvites" class="mp-list"></ul></section>
+        </div>
+        <section class="dialog-card" id="mpRecords" hidden>
+          <div class="mp-section-title"><h3>Your multiplayer record</h3><button class="text-button" id="mpRecordsRefresh">Refresh</button></div>
+          <div id="mpPersonal" class="mp-stats"></div>
+          <div class="mp-section-title"><h3>Competitive standings</h3><label><span class="mp-sr">Role standings</span><select id="mpBoardRole"><option value="survivor">Survivor</option><option value="granny">Granny</option></select></label></div>
+          <p class="setting-detail">Only eligible public PvP matches earn points. Repeat opponents have a six-hour cooldown.</p><ol id="mpBoard" class="mp-list"></ol>
+        </section>
+      </div>
+      <div id="mpRoom" hidden>
+        <div class="mp-room-bar"><div><span class="eyebrow">ROOM CODE</span><strong id="mpRoomCode"></strong><button class="text-button" type="button" id="mpCopy">Copy</button></div><span class="verified-badge" id="mpRoomType"></span></div>
+        <div class="mp-columns">
+          <section class="dialog-card mp-stage"><canvas id="mpPreview" aria-label="3D role preview"></canvas><span class="eyebrow" id="mpPreviewCaption">BLACKMERE FIELD OUTFIT</span></section>
+          <section class="dialog-card mp-roster">
+            <div class="mp-section-title"><h3 id="mpRosterTitle">The crew</h3><span class="eyebrow" id="mpCount"></span></div>
+            <ul class="mp-list" id="mpRoster"></ul>
+            <div id="mpReadyPanel">
+              <label>Preferred role <select id="mpRole"><option value="random">Random</option><option value="survivor">Survivor</option><option value="granny">Granny</option></select></label>
+              <div class="mp-inline"><button id="mpReady" class="secondary">Ready</button><button id="mpStart" class="primary" hidden>Start Match</button></div>
+            </div>
+            <p id="mpMatchState"></p>
+            <div class="mp-inline"><button id="mpEnter" class="primary" hidden>Enter Match <svg aria-hidden="true"><use href="#arrow"/></svg></button><button id="mpRematch" class="primary" hidden>Rematch</button><button id="mpLeave" class="text-button">Leave Room</button></div>
+          </section>
+          <section class="dialog-card mp-actions" id="mpHostSettings" hidden><h3>Host settings</h3>
+            <form id="mpEdit">
+              <label>Mode <select id="mpEditMode"><option value="pvp">Survivors vs. Granny</option><option value="coop">Co-op vs. AI</option></select></label>
+              <label>Access <select id="mpEditAccess"><option value="private">Invite code only</option><option value="public">Public room</option></select></label>
+              <label>Time limit <select id="mpEditMinutes"><option value="6">6 minutes</option><option value="8">8 minutes</option><option value="10">10 minutes</option></select></label>
+              <label>Co-op difficulty <select id="mpEditDifficulty"><option value="story">Story</option><option value="normal">Standard</option><option value="dread">Nightmare</option></select></label>
+              <label>Allow proximity voice <input id="mpVoiceEdit" type="checkbox"></label>
+              <button class="secondary" type="submit">Apply Settings</button>
+            </form>
+            <button class="text-button" type="button" id="mpQueue">Find Players for Party</button>
+            <p class="setting-detail">Filling empty seats makes this room public.</p>
+          </section>
+          <section class="dialog-card mp-actions" id="mpFriendBox" hidden><div class="mp-section-title"><h3>Invite a friend</h3><button class="text-button" type="button" data-open="friends">Friends List</button></div><div id="mpFriendList" class="mp-list"></div></section>
+          <section class="dialog-card mp-wide" id="mpChatBox"><h3 id="mpChatTitle">Room chat</h3><ol id="mpChat" class="mp-list mp-chat" aria-live="polite"></ol>
+            <form id="mpChatForm" class="mp-inline"><input id="mpChatText" aria-label="Message" maxlength="220" placeholder="Message the room" autocomplete="off" required><button class="secondary" type="submit">Send</button></form>
+          </section>
+          <section class="dialog-card mp-wide" id="mpReportBox" hidden><h3>Player conduct</h3><form id="mpReport" class="mp-inline"><select id="mpReportPlayer" aria-label="Player to report" required></select><select id="mpReportReason" aria-label="Reason"><option>Harassment</option><option>Cheating</option><option>Inappropriate chat</option></select><button class="secondary" type="submit">Report</button></form></section>
+        </div>
+      </div>
     </div>
   </section>
   <dialog id="auth" class="menu-dialog access-dialog" aria-labelledby="authTitle">
@@ -222,6 +292,11 @@
       <div class="hud-journal"><kbd>Tab</kbd> Journal</div>
       <div class="touch-top"><button data-touch="journal">Journal</button><button data-touch="pause">Pause</button></div>
     </div>
+    <div id="mpHud" class="mp-hud" hidden>
+      <div><span id="mpHudRole" class="eyebrow"></span><strong id="mpHudTime">–:–</strong><span id="mpHudTeam"></span></div>
+      <p id="mpHudStatus"></p><p id="mpHudAbilities"></p><p id="mpHudVoice" hidden>Hold V to speak</p>
+    </div>
+    <p id="mpConnection" class="mp-connection" role="status" hidden></p>
     <div id="nightCard" class="night-card" aria-live="polite"><span class="eyebrow" id="chapterLabel"></span><strong id="chapterName"></strong></div>
     <div id="footstepCue" class="footstep-cue" hidden>
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10 5-5 5 5m-5-5v10" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -238,15 +313,26 @@
     </div>
     <div class="touch-controls" aria-label="Touch controls">
       <div class="touch-pad"><button data-touch="KeyW" aria-label="Move forward">↑</button><button data-touch="KeyA" aria-label="Move left">←</button><button data-touch="KeyS" aria-label="Move back">↓</button><button data-touch="KeyD" aria-label="Move right">→</button></div>
-      <div class="touch-actions"><button data-touch="KeyE">Use</button><button data-touch="ShiftLeft">Run</button><button data-touch="KeyC">Crouch</button><button data-touch="KeyF">Light</button><button data-touch="KeyG">Drop</button></div>
+      <div class="touch-actions"><button data-touch="KeyE">Use</button><button data-touch="ShiftLeft">Run</button><button data-touch="KeyC">Crouch</button><button data-touch="KeyF">Light</button><button data-touch="KeyG">Drop</button><button data-touch="KeyQ" data-granny hidden>Snare</button><button data-touch="KeyX" data-granny hidden>Bolt</button><button data-touch="KeyV" id="mpTalk" hidden>Talk</button></div>
     </div>
   </section>
   <section id="pause" class="screen overlay" hidden>
     <div class="panel narrow end">
-      <p class="eyebrow amber">BLACKMERE HOUSE</p><h2>Paused</h2>
-      <div class="stack"><button class="primary" data-resume>Resume <svg><use href="#arrow"/></svg></button><button class="secondary" data-open="settings">Settings</button><button class="text-button" data-menu>Abandon run</button></div>
+      <p class="eyebrow amber">BLACKMERE HOUSE</p><h2 id="pauseTitle">Paused</h2><p id="mpPauseDetail" hidden>The online match is still running.</p>
+      <div class="stack"><button class="primary" data-resume>Resume <svg><use href="#arrow"/></svg></button><button id="mpTeamChat" class="secondary" hidden>Team Chat</button><button id="mpSpectateNext" class="secondary" hidden>Watch Next Survivor</button><button class="secondary" data-open="settings">Settings</button><button class="text-button" data-menu id="pauseLeave">Abandon run</button></div>
+      <details id="mpVoiceConsent" class="mp-voice-consent" hidden><summary>Proximity voice</summary>
+        <p>Hold V or Talk to share your voice with nearby players, including Granny. Direct connections can reveal your network address to other players.</p>
+        <button type="button" class="secondary" id="mpVoiceToggle">Enable microphone</button><p id="mpVoiceStatus" role="status">Voice is off.</p>
+      </details>
     </div>
   </section>
+  <dialog id="teamChat" class="menu-dialog guide-dialog" aria-labelledby="teamChatTitle">
+    <header class="dialog-chrome"><span><svg aria-hidden="true"><use href="#people"/></svg> Blackmere House <i></i> Team channel</span><button type="button" class="dialog-close" data-back aria-label="Close team chat"><svg aria-hidden="true"><use href="#closeIcon"/></svg></button></header>
+    <div class="dialog-body"><div class="dialog-intro"><h2 id="teamChatTitle" tabindex="-1">Team Chat</h2><p>Your match continues while you chat.</p></div>
+      <ol id="mpTeamMessages" class="mp-list mp-chat" aria-live="polite"></ol><p id="mpTeamError" class="feedback" role="status"></p>
+      <form id="mpTeamForm" class="mp-inline"><input id="mpTeamText" aria-label="Team message" maxlength="220" placeholder="Message your team" required><button class="secondary" type="submit">Send</button></form>
+    </div>
+  </dialog>
   <section id="journal" class="screen overlay" hidden>
     <div class="panel narrow journal">
       <div class="panel-top"><button class="back" data-resume><svg><use href="#back"/></svg><span>Back</span></button><span class="eyebrow" id="journalNight">NIGHT 01 / 05</span></div>

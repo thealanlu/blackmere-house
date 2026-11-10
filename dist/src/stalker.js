@@ -31,15 +31,35 @@ export function createStalker(world,nav,brain,random,emit,openDoor,attack) {
     const approach=brain.check!==null?[spot.x+Math.sin(spot.yaw)*.52,spot.z+Math.cos(spot.yaw)*.52]:null;
     setState('search',approach??brain.searchPoints.shift()??point,5.5);
   }
+  function canSee(player,distance,targetHeading) {
+    return brain.spawnTime<=0&&!player.hidden&&distance<level.vision*(player.crouch?.72:1)&&
+      (distance<1.68||Math.abs(wrap(targetHeading-brain.heading))<(brain.state==='chase'?1.73:1.03))&&
+      nav.clear(actor.x,actor.z,player.x,player.z);
+  }
+  function chooseTarget(players) {
+    let best=null,score=Infinity;
+    for(const player of players) {
+      const dx=player.x-actor.x,dz=player.z-actor.z,distance=Math.hypot(dx,dz);
+      const visible=canSee(player,distance,Math.atan2(dx,dz));
+      const value=distance+(visible?0:100);
+      if(value<score){score=value;best=player;}
+    }
+    return best;
+  }
+  function recover() {
+    brain.recovering=.90;brain.pace=0;
+  }
   function update(dt,player) {
-    if(brain.state==='attack')return;
+    if(brain.state==='attack') {
+      if(brain.recovering===undefined)return;
+      if((brain.recovering-=dt)>0)return;
+      delete brain.recovering;
+      startSearch([actor.x,actor.z]);
+    }
     brain.spawnTime-=dt;brain.timer-=dt;brain.doorWait=Math.max(0,brain.doorWait-dt);
     const dx=player.x-actor.x,dz=player.z-actor.z,distance=Math.hypot(dx,dz);
     const targetHeading=Math.atan2(dx,dz);
-    const clear=distance<level.vision&&nav.clear(actor.x,actor.z,player.x,player.z);
-    const visible=brain.spawnTime<=0&&!player.hidden&&clear&&
-      (distance<1.68||Math.abs(wrap(targetHeading-brain.heading))<(brain.state==='chase'?1.73:1.03))&&
-      distance<level.vision*(player.crouch?.72:1);
+    const visible=canSee(player,distance,targetHeading);
     if(visible) {
       brain.seen+=dt*(distance<3?2.5:1);
       if(brain.seen>.22||brain.state==='chase') {
@@ -136,5 +156,5 @@ export function createStalker(world,nav,brain,random,emit,openDoor,attack) {
     brain.stride+=travelled/(running?.99:.76);
     if(Math.floor(brain.stride)>Math.floor(previousStride))emit('enemyStep',{...actor,running,foot:Math.floor(brain.stride)%2});
   }
-  return {update,reset,hear};
+  return {update,reset,hear,chooseTarget,recover};
 }

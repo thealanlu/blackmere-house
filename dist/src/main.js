@@ -2,6 +2,7 @@ import { createGame } from './game.js';
 import { itemInfo, levels } from './rules.js';
 import { rankedAttempt } from './online.js';
 import { bindSocial, timeLabel } from './social.js';
+import { bindMultiplayer } from './multiplayer.js';
 
 const $=id=>document.getElementById(id);
 const defaults={difficulty:'normal',graphics:'medium',volume:.72,music:.55,sensitivity:1,motion:!matchMedia('(prefers-reduced-motion: reduce)').matches};
@@ -21,6 +22,8 @@ const menuDialogs=new Map([...document.querySelectorAll('.menu-dialog')].map(dia
 let view='menu', returnView='menu',dialogOrigin,game,toastTimer,revealTimer,footstepTimer,footstepPulse,threatLabel='',lastPrompt='';
 const guestOnly=document.documentElement.dataset.edition==='guest';
 const social=guestOnly?null:bindSocial(navigate,name=>view===name);
+const multiplayer=guestOnly?null:bindMultiplayer({navigate,isOpen:name=>view===name,social,game:createGameOnce});
+social?.setMultiplayer(multiplayer);
 function fatal(error) {
   console.error(error);
   const box=$('fatal');
@@ -155,11 +158,11 @@ const ui={
     const label=state==='chase'?'RUN':value>.57?'SHE IS CLOSE':'';
     if(label!==threatLabel){threatLabel=label;$('threat').textContent=label;}
   },
-  footstep(direction,muffled) {
+  footstep(direction,muffled,label) {
     const cue=$('footstepCue');
     cue.dataset.direction=direction;
     cue.dataset.muffled=String(muffled);
-    cue.lastElementChild.textContent=(muffled?'Muffled steps':'Footsteps')+' · '+direction;
+    cue.lastElementChild.textContent=(label??(muffled?'Muffled steps':'Footsteps'))+' · '+direction;
     cue.hidden=false;
     if(settings.motion) {
       footstepPulse?.cancel();
@@ -178,6 +181,8 @@ const ui={
   flash(on){$('flashLabel').textContent=on?'LIGHT ON':'LIGHT OFF';},
   mouseHint(show){$('mouseHint').hidden=!show;},
   hide(active){$('gameShade').classList.toggle('hide',active);},
+  match(packet){multiplayer?.hud(packet);},
+  matchConnection(text){multiplayer?.connection(text);},
   rankResult(data,error) {
     if(data)social?.afterResult();
     if(!['victory','defeat'].includes(view))return;
@@ -186,11 +191,12 @@ const ui={
 };
 function navigate(name,own=false) {
   if(menuDialogs.has(name)&&!menuDialogs.has(view)) {
-    returnView=['pause','dispatch'].includes(view)?view:'menu';
+    returnView=['pause','dispatch','multiplayer'].includes(view)?view:'menu';
     dialogOrigin=document.activeElement;
   }
   switchTo(name);
   social?.open(name,own);
+  if(name==='multiplayer')multiplayer?.open();
   if(name==='dispatch') {
     $('playDifficulty').value=settings.difficulty;
     $('playMessage').textContent='';
@@ -203,8 +209,12 @@ function navigate(name,own=false) {
   }
 }
 function back() {
-  if(menuDialogs.has(view))switchTo(returnView);
-  else if(view==='dispatch')switchTo('menu');
+  if(menuDialogs.has(view)) {
+    const destination=returnView;
+    switchTo(destination);
+    if(destination==='multiplayer')multiplayer?.open();
+  }
+  else if(['dispatch','multiplayer'].includes(view))switchTo('menu');
   else if(['journal','note','pause'].includes(view))game?.resume();
 }
 function setRunDifficulty() {
@@ -213,6 +223,10 @@ function setRunDifficulty() {
   try{localStorage.setItem('blackmere.settings',JSON.stringify(settings));}catch{}
 }
 $('play').onclick=()=>navigate('dispatch');
+$('multiplayerPlay').onclick=()=>{
+  if(multiplayer)navigate('multiplayer');
+  else location.assign('https://blackmere-house.thealanlu.chatgpt.site/?multiplayer=1');
+};
 $('guestPlay').onclick=()=>{setRunDifficulty();createGameOnce()?.begin();};
 if(social)$('rankedPlay').onclick=async()=>{
   if(!social.profile)return navigate(social.user?'profile':'auth',true);
@@ -241,8 +255,9 @@ for(const dialog of menuDialogs.values()) {
 for(const button of document.querySelectorAll('[data-resume]'))button.addEventListener('click',()=>game?.resume());
 for(const button of document.querySelectorAll('[data-menu]'))button.addEventListener('click',()=>game?.menu());
 document.addEventListener('keydown',event=>{
-  if(event.key==='Escape'&&!event.repeat&&['dispatch','journal','note'].includes(view)) {
+  if(event.key==='Escape'&&!event.repeat&&['dispatch','journal','note','multiplayer'].includes(view)) {
     event.preventDefault();back();
   }
 });
 social?.initialize();
+if(multiplayer&&(multiplayer.hasInvite||new URLSearchParams(location.search).has('multiplayer')))navigate('multiplayer');

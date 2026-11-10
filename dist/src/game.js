@@ -2,9 +2,11 @@ import * as T from '../vendor/three.module.js';
 import { createWorld } from './world.js';
 import { createCaretaker } from './caretaker.js';
 import { floorY, areaAt, TICK } from './rules.js';
-import { createSimulation, key, action } from './simulation.js';
+import { createSimulation, moveSurvivor, key, action } from './simulation.js';
 import { createAudio } from './audio.js';
 import { rng } from './materials.js';
+import { moveGranny, skill } from './match.js';
+import { survivorModel } from './survivor.js';
 
 const clamp=T.MathUtils.clamp;
 const damp=T.MathUtils.damp;
@@ -46,12 +48,16 @@ export function createGame(canvas,ui,settings) {
   scene.add(dust);
   const world=createWorld(scene),audio=createAudio();
   const rig=createCaretaker();scene.add(rig.root);
+  const remotes=new Map(),traps=new T.Group();
+  const snareGeo=new T.TorusGeometry(.19,.019,6,20),snareMat=new T.MeshStandardMaterial({color:0x745344,metalness:.64,roughness:.71});
+  scene.add(traps);
   const held=new Set();
   let sim,ranked,mode='menu',difficulty=settings.difficulty,dragging=false,touchLook=null,aimAssist=0;
   let pending=0,slot=-1,lookX=0,lookY=0,bob=0,bobStrength=0,time=0,accumulator=0,randomSound=8,lastFrame=0,raf;
   let scareTime=0,scareStart=0,attacker=null,transition=0,cameraYaw=0,cameraPitch=0,eye=1.66;
   let renderWidth=0,renderHeight=0,renderDpr=0,previousArea='',lastLightPos=[Infinity,Infinity],activeLights=[];
   let quality=settings.graphics,hudTick=0;
+  let online,netState,netKeys=0,netClock=0,netFrame=0,trapSignature='';
 
   function configure() {
     audio.setVolume(settings.volume);
@@ -78,6 +84,70 @@ export function createGame(canvas,ui,settings) {
     world.openGate(false);
     sim=createSimulation(attempt?.seed??crypto.getRandomValues(new Uint32Array(1))[0],difficulty,null,event);
     startNight();
+  }
+  function beginMatch(link) {
+    audio.init();online=link;netState=null;netKeys=0;transition++;time=0;previousArea='';
+    clearInput();mode='play';audio.enable(true);ui.show('play');ui.matchConnection('Connecting to the house…');
+    link.start(receiveMatch,text=>ui.matchConnection(text));
+    lock();
+  }
+  function receiveMatch(packet,roundtrip) {
+    const previous=netState;
+    netState=packet;netClock=packet.clock;netFrame=performance.now();
+    if(packet.phase==='result') {
+      const connection=online;
+      endMatch();connection.complete(packet);return;
+    }
+    const s=packet.me,body=packet.watch?.body??s.body;
+    if(!previous) {
+      sim=createSimulation(0,packet.difficulty);
+      for(const d of world.doors){d.angle=0;d.pivot.rotation.y=0;}
+      ui.night(1,packet.mode==='pvp'?'Survivors vs. Granny':'Co-op Escape');
+    }
+    const state=sim.state,p=state.player;
+    state.progress=packet.progress;state.inventory=s.inventory;state.selected=s.selected;
+    state.flash=packet.watch?.flash??s.flash;state.stamina=s.stamina;state.tired=s.tired;
+    if(packet.world)sim.restoreWorld(packet.world);
+    const snapped=!previous||previous.me.status!==s.status||previous.watch?.name!==packet.watch?.name||p.hidden!==body.hidden||
+      Math.hypot(p.x-body.x,p.z-body.z)>1.35;
+    if(snapped||s.status!=='active')Object.assign(p,body);
+    else {
+      const next={...body},energy={stamina:s.stamina,tired:s.tired};
+      if(packet.timers.slow<=packet.clock&&(s.role!=='granny'||packet.timers.warm<=packet.clock)) {
+        for(let i=0;i<Math.min(3,Math.round(roundtrip/65));i++) {
+          if(s.role==='granny')moveGranny(next,sim.nav,netKeys);
+          else moveSurvivor(next,energy,sim.nav,netKeys);
+        }
+      }
+      p.crouch=body.crouch;
+      sim.nav.move(p,(next.x-p.x)*.34,(next.z-p.z)*.34,s.role==='granny'?.24:.23);
+    }
+    audio.listen(p);
+    for(const event of packet.events)playMatchEvent(event);
+    if(!previous){syncWorld(0);syncHUD();updateCamera(0);startFrames();}
+    ui.match(packet);
+  }
+  function playMatchEvent(e) {
+    if(e.text){ui.toast(e.text);return;}
+    const player=sim.state.player;
+    if(e.kind==='enemyStep') {
+      if(e.source!==netState.me.id)caretakerStep(player,e);
+      return;
+    }
+    if(e.x===undefined||e.source===netState.me.id&&e.kind==='step')return;
+    const muffled=!sim.nav.clear(player.x,player.z,e.x,e.z),distance=Math.hypot(e.x-player.x,e.z-player.z);
+    if(distance>e.radius*(muffled?.8:1.14))return;
+    audio.play(e.kind,{...e,muffled,spatialGain:Math.max(.15,1-distance/(e.radius*1.32))});
+    if(netState.me.role==='granny'&&settings.footstepCues&&e.source!==netState.me.id&&
+      ['step','drop','door'].includes(e.kind)) {
+      ui.footstep(soundDirection(player,e),muffled,e.kind==='step'?'Survivor steps':e.kind==='drop'?'Impact':'Door noise');
+    }
+  }
+  function soundDirection(player,step) {
+    const dx=step.x-player.x,dz=step.z-player.z;
+    const pan=dx*Math.cos(player.yaw)-dz*Math.sin(player.yaw);
+    const front=-dx*Math.sin(player.yaw)-dz*Math.cos(player.yaw);
+    return Math.abs(pan)>Math.abs(front)?(pan<0?'left':'right'):(front<0?'behind':'ahead');
   }
   function startNight() {
     attacker=null;randomSound=8;bob=0;bobStrength=0;previousArea='';clearInput();
@@ -109,8 +179,7 @@ export function createGame(canvas,ui,settings) {
     const stone=['Kitchen','Cellar'].includes(areaAt(step.x,step.z));
     audio.footstep({...step,pan,gain,muffled,stone});
     if(settings.footstepCues) {
-      const direction=Math.abs(pan)>Math.abs(front)?(pan<0?'left':'right'):(front<0?'behind':'ahead');
-      ui.footstep(direction,muffled);
+      ui.footstep(soundDirection(player,step),muffled);
     }
   }
   function lock() {
@@ -125,14 +194,25 @@ export function createGame(canvas,ui,settings) {
   function pause(screen='pause',data=null) {
     if(mode!=='play')return;
     mode=screen;release();clearInput();audio.enable(false);ui.show(screen,data);
+    if(online){netKeys=0;online.idle();}
   }
   function resume() {
     if(!['pause','journal','note','controls'].includes(mode))return;
     mode='play';ui.show('play');audio.init();audio.enable(true);startFrames();lock();
   }
   function menu(){
+    if(online) {
+      const connection=online;
+      endMatch();connection.leave();return;
+    }
     transition++;mode='menu';release();clearInput();audio.enable(false);
     ranked?.cancel();ranked=null;ui.show('menu');
+  }
+  function endMatch() {
+    online?.stop();online=null;netState=null;netKeys=0;
+    for(const model of remotes.values())scene.remove(model.root);
+    remotes.clear();traps.clear();trapSignature='';rig.root.visible=true;
+    mode='menu';release();clearInput();audio.enable(false);ui.match(null);
   }
   function finish(mode,data) {
     release();clearInput();audio.enable(false);ui.show(mode,{...data,ranked:Boolean(ranked)});
@@ -165,6 +245,7 @@ export function createGame(canvas,ui,settings) {
     applyInput([0,0,0,action.wake,-1]);startNight();
   }
   const actionKeys={KeyE:action.use,KeyG:action.drop,KeyC:action.crouch,ControlLeft:action.crouch,ControlRight:action.crouch,KeyF:action.light};
+  const matchKeys={KeyQ:skill.trap,KeyX:skill.bolt};
   document.addEventListener('keydown',e=>{
     if(mode!=='play')return;
     if(['Tab','Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Escape','ControlLeft','ControlRight'].includes(e.code))e.preventDefault();
@@ -173,6 +254,7 @@ export function createGame(canvas,ui,settings) {
     if(e.code==='Escape'||e.code==='KeyP')pause();
     if(e.code==='Tab')pause('journal');
     if(actionKeys[e.code])pending|=actionKeys[e.code];
+    if(online&&matchKeys[e.code])pending|=matchKeys[e.code];
     if(/^Digit[1-4]$/.test(e.code))slot=Number(e.code.at(-1))-1;
   });
   document.addEventListener('keyup',e=>held.delete(e.code));
@@ -205,6 +287,7 @@ export function createGame(canvas,ui,settings) {
       b.setPointerCapture(e.pointerId);
       const k=b.dataset.touch;
       if(actionKeys[k])pending|=actionKeys[k];
+      else if(online&&matchKeys[k])pending|=matchKeys[k];
       else if(k==='pause')pause();
       else if(k==='journal')pause('journal');
       else held.add(k);
@@ -252,11 +335,69 @@ export function createGame(canvas,ui,settings) {
       }else if((model.drawer||model.panels)&&Boolean(model.open)!==Boolean(o.open))world.setContainer(model,o.open);
     }
     world.power(s.progress.power);world.openGate(s.progress.handle);world.updateGate(dt);
+    if(online){syncAvatars(dt);return;}
     const brain=s.brain,a=brain.actor;
     rig.root.position.set(a.x,floorY(a.x,a.z),a.z);
     if(dt)rig.root.rotation.y+=Math.atan2(Math.sin(brain.heading-rig.root.rotation.y),Math.cos(brain.heading-rig.root.rotation.y))*Math.min(1,dt*17);
     else rig.root.rotation.y=brain.heading;
     rig.animate(dt,time,mode==='caught'?0:brain.pace,brain.state,brain.gaze,brain.stride);
+  }
+  function syncAvatars(dt) {
+    const packet=netState;
+    if(!packet)return;
+    const granny=packet.avatars.find(p=>p.role==='granny');
+    const ai=packet.ai;
+    rig.root.visible=Boolean(granny||ai);
+    if(granny||ai) {
+      const a=granny??ai.actor,heading=granny?granny.yaw+Math.PI:ai.heading;
+      poseAt(rig.root,a,heading,dt);
+      rig.animate(dt,time,granny?.pace??ai.pace,granny?(granny.attack?'attack':'patrol'):ai.state,ai?.gaze??0,granny?.stride??ai.stride);
+    }
+    const present=new Set();
+    for(const avatar of packet.avatars) {
+      if(avatar.role!=='survivor')continue;
+      let model=remotes.get(avatar.id);
+      if(!model) {
+        model=survivorModel(packet.roster.filter(p=>p.role==='survivor').findIndex(p=>p.id===avatar.id));
+        scene.add(model.root);remotes.set(avatar.id,model);
+      }
+      poseAt(model.root,avatar,avatar.yaw+Math.PI,dt);
+      model.pose(avatar,time,dt);present.add(avatar.id);
+    }
+    for(const [id,model] of remotes) {
+      if(!present.has(id)){scene.remove(model.root);remotes.delete(id);}
+    }
+    const signature=packet.traps.map(t=>t.x+','+t.z).join('/');
+    if(signature!==trapSignature) {
+      traps.clear();trapSignature=signature;
+      for(const t of packet.traps) {
+        const snare=new T.Mesh(snareGeo,snareMat);
+        snare.rotation.x=Math.PI/2;snare.position.set(t.x,floorY(t.x,t.z)+.039,t.z);traps.add(snare);
+      }
+    }
+  }
+  function poseAt(root,p,heading,dt) {
+    const snap=!root.userData.placed||Math.hypot(root.position.x-p.x,root.position.z-p.z)>2.1;
+    const x=snap?p.x:damp(root.position.x,p.x,14,dt),z=snap?p.z:damp(root.position.z,p.z,14,dt);
+    root.position.set(x,floorY(x,z),z);root.userData.placed=true;
+    root.rotation.y=snap?heading:root.rotation.y+Math.atan2(Math.sin(heading-root.rotation.y),Math.cos(heading-root.rotation.y))*Math.min(1,dt*17);
+  }
+  function matchInput(next) {
+    const p=sim.state.player,{me,timers}=netState;
+    const canMove=me.status==='active'&&!netState.watch,granny=me.role==='granny';
+    netKeys=canMove?next[0]:0;
+    if(canMove) {
+      p.yaw=Math.atan2(Math.sin(p.yaw+next[1]/1000),Math.cos(p.yaw+next[1]/1000));
+      p.pitch=clamp(p.pitch+next[2]/1000,-1.43,1.43);
+    }
+    online.input(netKeys,p.yaw,p.pitch,canMove?next[3]:0,canMove?next[4]:-1);
+    online.talk(canMove&&held.has('KeyV'));
+    if(!canMove)return;
+    const now=netClock+Math.min(550,performance.now()-netFrame);
+    if(granny) {
+      if(now>=timers.warm&&now>=timers.attack-860)moveGranny(p,sim.nav,netKeys);
+    } else if(now>=timers.slow)moveSurvivor(p,sim.state,sim.nav,netKeys);
+    if(p.hidden===null)p.eye=floorY(p.x,p.z)+(granny?1.86:p.crouch?1.03:1.66);
   }
   function updateCamera(dt) {
     const p=sim.state.player;
@@ -302,6 +443,7 @@ export function createGame(canvas,ui,settings) {
   function frame(now) {
     raf=0;
     if(!['play','caught'].includes(mode))return;
+    if(online&&!netState)return;
     const dt=clamp((now-lastFrame)/1000,0,.10);
     lastFrame=now;time+=dt;aimAssist-=dt;resize();
     if(mode==='play') {
@@ -310,34 +452,44 @@ export function createGame(canvas,ui,settings) {
       while(accumulator>=TICK&&mode==='play') {
         accumulator-=TICK;
         const before={x:sim.state.player.x,z:sim.state.player.z};
-        applyInput(input());
+        if(online)matchInput(input());else applyInput(input());
         moving ||= Math.hypot(sim.state.player.x-before.x,sim.state.player.z-before.z)>TICK*.25;
       }
       const s=sim.state,p=s.player;
       if(mode==='play') {
-        const a=s.brain.actor,tension=clamp(1-Math.hypot(p.x-a.x,p.z-a.z)/9.5,0,1);
+        const a=online?(netState.avatars.find(p=>p.role==='granny')??netState.ai?.actor):s.brain.actor;
+        const tension=a?clamp(1-Math.hypot(p.x-a.x,p.z-a.z)/9.5,0,1):0;
         sprint=moving&&!s.tired&&!p.crouch&&(held.has('ShiftLeft')||held.has('ShiftRight'));
         if(moving)bob+=dt*(sprint?13.7:p.crouch?6.1:9.9);
         bobStrength=damp(bobStrength,moving?(sprint?.039:p.crouch?.013:.021):0,14,dt);
         audio.listen(p);
-        audio.update(dt,tension,sprint,s.brain.state==='chase');
-        ui.threat(s.brain.state,tension);ui.stamina(s.stamina,sprint);ui.hide(p.hidden!==null);ui.flash(s.flash);
+        const threat=online?netState.ai?.state??'patrol':s.brain.state;
+        audio.update(dt,tension,sprint,threat==='chase'||Boolean(online&&tension>.70));
+        ui.threat(threat,tension);ui.stamina(s.stamina,sprint);ui.hide(p.hidden!==null);ui.flash(s.flash);
         const progress=JSON.stringify(s.progress),inventory=s.inventory.join(',')+':'+s.selected;
         if(progress!==lastProgress){lastProgress=progress;ui.updateObjectives(s.progress);}
         if(inventory!==lastInventory){lastInventory=inventory;ui.updateInventory(s.inventory.map(i=>sim.world.objects[i]),s.selected);}
-        if((randomSound-=dt)<=0) {
+        if(!online&&(randomSound-=dt)<=0) {
           randomSound=11+Math.random()*18;
           audio.play(Math.random()<.63?'whisper':'settle',{x:p.x-4+Math.random()*8,z:p.z-3+Math.random()*6});
         }
         const area=areaAt(p.x,p.z);
         if(area!==previousArea){previousArea=area;ui.area(area);}
-        if((hudTick-=dt)<=0){hudTick=.052;ui.prompt(sim.prompt());}
+        if((hudTick-=dt)<=0){hudTick=.052;ui.prompt(online?matchPrompt(p):sim.prompt());}
       }
     }
     syncWorld(dt);updateCamera(dt);updateLighting(dt);
     renderer.render(scene,camera);
     if(['play','caught'].includes(mode))raf=requestAnimationFrame(frame);
   }
+  function matchPrompt(p) {
+    const {me,avatars}=netState;
+    if(me.status!=='active')return '';
+    const aimed=o=>Math.hypot(o.x-p.x,o.z-p.z)<1.55&&Math.cos(Math.atan2(p.x-o.x,p.z-o.z)-p.yaw)>.66;
+    if(me.role==='granny')return sim.world.doors.some(d=>d.kind==='door'&&!d.secret&&!d.open&&aimed(d))?'Open door':'Swing weapon';
+    const down=avatars.find(o=>o.status==='captured'&&aimed(o));
+    return down?'Rescue '+down.name:sim.prompt();
+  }
   configure();
-  return {begin,resume,menu,pause,nextNight,configure,get mode(){return mode;}};
+  return {begin,beginMatch,closeMatch:endMatch,resume,menu,pause,nextNight,configure,get mode(){return mode;}};
 }

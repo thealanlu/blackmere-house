@@ -4,7 +4,7 @@ const source=new URL('../dist/',import.meta.url);
 const output=new URL('../.pages/',import.meta.url);
 await rm(output,{recursive:true,force:true});
 await mkdir(output,{recursive:true});
-for(const entry of ['assets','src','vendor','style.css','blackmere.webmanifest','third-party-notices.txt']){
+for(const entry of ['assets','src','vendor','style.css','multiplayer.css','blackmere.webmanifest','third-party-notices.txt']){
   await cp(new URL(entry,source),new URL(entry,output),{recursive:true});
 }
 const html=await readFile(new URL('index.html',source),'utf8');

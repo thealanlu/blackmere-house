@@ -1,5 +1,6 @@
 import {body,fail,json,one,many,write,statement,limit} from './http.js';
 import {username,removeIdentity,cleared} from './auth.js';
+import {multiplayerRecord,multiplayerPresence} from './multiplayer.js';
 
 export const profileFor=(db,user)=>user?one(db,'SELECT * FROM profiles WHERE subject=? AND closing=0',user.subject):null;
 const view=(p)=>p?{id:p.id,username:p.username,createdAt:p.created_at,visibility:p.visibility,allowRequests:Boolean(p.requests),avatar:Boolean(p.avatar)}:null;
@@ -87,12 +88,13 @@ export async function players(request,env,url,user,profile) {
   const db=env.DB,id=profile?.id??'', path=url.pathname.slice(5), method=request.method;
   if(path==='me'&&method==='GET') {
     if(!profile)return json({profile:null,user:user?{provider:user.provider,username:user.username}:null});
-    const [summary,rank,notifications,recent]=await Promise.all([
+    const [summary,rank,notifications,recent,multiplayer]=await Promise.all([
       stats(db,id),board(db,new URL('https://example.invalid/?metric=score'),profile),
       one(db,'SELECT COUNT(*) AS count FROM notifications WHERE owner=? AND seen=0',id),
-      many(db,'SELECT route,ticks,score,finished_at FROM results WHERE player=? ORDER BY finished_at DESC LIMIT 8',id)
+      many(db,'SELECT route,ticks,score,finished_at FROM results WHERE player=? ORDER BY finished_at DESC LIMIT 8',id),
+      multiplayerRecord(db,id)
     ]);
-    return json({profile:view(profile),user:{provider:user.provider},stats:summary,rank:rank.personal?.rank??null,notifications:notifications.count,recent});
+    return json({profile:view(profile),user:{provider:user.provider},stats:summary,rank:rank.personal?.rank??null,notifications:notifications.count,recent,multiplayer});
   }
   if(path==='leaderboard'&&method==='GET')return json(await board(db,url,profile));
   const match=/^(profile|avatar)\/([0-9a-f-]{36})$/.exec(path);
@@ -106,7 +108,7 @@ export async function players(request,env,url,user,profile) {
       return new Response(Uint8Array.from(atob(encoded),c=>c.charCodeAt(0)),{headers:{'Content-Type':mime,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
     }
     const rank=await board(db,new URL('https://example.invalid/?metric=score'),p);
-    return json({profile:view(p),stats:await stats(db,p.id),rank:rank.personal?.rank??null});
+    return json({profile:view(p),stats:await stats(db,p.id),rank:rank.personal?.rank??null,multiplayer:await multiplayerRecord(db,p.id)});
   }
   if(!user)fail(401,'Sign in to continue.');
   if(path==='profile'&&method==='POST') {
@@ -158,7 +160,8 @@ export async function players(request,env,url,user,profile) {
       many(db,`SELECT n.id,n.kind,n.seen,n.created_at,p.username FROM notifications n JOIN profiles p ON p.id=n.sender
         WHERE n.owner=? AND p.closing=0 ORDER BY n.created_at DESC LIMIT 30`,id)
     ]);
-    return json({friends:rows.map(p=>({...view(p),relationship:p.status,outgoing:p.sender===id})),blocks,notifications:notes});
+    const presence=await multiplayerPresence(db,rows.filter(p=>p.status==='accepted').map(p=>p.id),Date.now());
+    return json({friends:rows.map(p=>({...view(p),relationship:p.status,outgoing:p.sender===id,multiplayer:presence[p.id]})),blocks,notifications:notes});
   }
   if(path==='notifications'&&method==='POST') {
     await limit(db,'notes:'+id,20);

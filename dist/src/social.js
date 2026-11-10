@@ -39,7 +39,7 @@ async function asAvatar(file) {
 
 export function bindSocial(navigate,isOpen) {
   let current={},config={},authMode='login',avatarPatch,profileTarget=null,page=1,pages=1,boardRequest=0,friendRequest=0;
-  let online=false;
+  let online=false,multiplayer;
   function badge(count) {
     $('notificationBadge').hidden=!count;
     $('notificationBadge').textContent=count>99?'99+':count||'';
@@ -174,7 +174,7 @@ export function bindSocial(navigate,isOpen) {
   $('boardPrevious').onclick=()=>{if(page>1){page--;fetchBoard();}};
   $('boardNext').onclick=()=>{if(page<pages){page++;fetchBoard();}};
 
-  function record(p,s,rank,recent=[]) {
+  function record(p,s,rank,recent=[],onlineRecord=[]) {
     const hero=el('div',undefined,'profile-hero'),label=el('div');
     label.append(el('strong',p.username),el('small','Registered '+new Date(p.createdAt).toLocaleDateString()));
     hero.append(avatar(p),label);
@@ -183,6 +183,15 @@ export function bindSocial(navigate,isOpen) {
       ['Escape rate',percentage(s.escapes,s.games)],['Fastest escape',timeLabel(s.best)],['Total score',fmt(s.score)]];
     for(const [name,value] of cards){const d=el('div');d.append(el('dt',name),el('dd',value));stats.append(d);}
     $('profileRecord').replaceChildren(hero,stats);
+    if(onlineRecord.length) {
+      const summary=el('details',undefined,'scoring');
+      summary.append(el('summary','Multiplayer record'));
+      for(const row of onlineRecord) {
+        const wins=row.role==='granny'?row.wins+' victories · '+row.captures+' captures':row.escapes+' escapes · '+row.rescues+' rescues';
+        summary.append(el('p',(row.role==='granny'?'Granny':'Survivor')+' · '+row.games+' matches · '+wins+' · '+row.score+' points'));
+      }
+      $('profileRecord').append(summary);
+    }
     if(recent.length) {
       const history=el('details',undefined,'scoring');history.append(el('summary','Recent ranked runs'));
       for(const r of recent)history.append(el('p',new Date(r.finished_at).toLocaleDateString()+' · '+(r.route?'Escaped in '+timeLabel(r.ticks)+' · '+fmt(r.score)+' pts':'Caught on night five')));
@@ -200,7 +209,7 @@ export function bindSocial(navigate,isOpen) {
       if(!isOpen('profile')||profileTarget!==target)return;
       if(!target&&!online)throw new Error('Player services are unavailable.');
       msg('profileStatus');
-      if(r.profile)record(r.profile,r.stats,r.rank,r.recent);
+      if(r.profile)record(r.profile,r.stats,r.rank,r.recent,r.multiplayer);
       if(target)return;
       if(!r.user){$('profileGate').hidden=false;return;}
       $('profileForm').hidden=false;
@@ -244,6 +253,14 @@ export function bindSocial(navigate,isOpen) {
     $(id).replaceChildren(...(players.length?players.map(p=>{
       const row=el('div',undefined,'player-row'),buttons=el('span',undefined,'player-actions');
       row.append(playerName(p,!blocked));
+      if(p.multiplayer?.status)row.append(el('small',p.multiplayer.status,'setting-detail'));
+      if(!blocked&&p.relationship==='accepted'&&multiplayer) {
+        if(multiplayer.canInvite)buttons.append(control('Invite to room',async()=>{
+          if(await multiplayer.invite(p.id))msg('friendsStatus','Invitation sent to '+p.username+'.');
+          else msg('friendsStatus','This friend is unavailable for an invitation.',true);
+        }));
+        if(p.multiplayer?.code)buttons.append(control('Join game',()=>multiplayer.joinFriend(p.multiplayer.code)));
+      }
       for(const [label,action] of blocked?[['Unblock','unblock']]:actions(p)) {
         const button=control(label,()=>friendAction(p.id,action,button));buttons.append(button);
       }
@@ -305,6 +322,7 @@ export function bindSocial(navigate,isOpen) {
   },15000);
 
   return {initialize,session,
+    setMultiplayer(value){multiplayer=value;},
     open(name,own=false) {
       if(name==='auth'){showAuth();session().then(()=>{if(isOpen('auth')&&!$('authName').value)showAuth(authMode,true);});}
       if(name==='profile'){if(own)profileTarget=null;renderProfile();}

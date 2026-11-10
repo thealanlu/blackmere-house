@@ -30,6 +30,16 @@ Open [http://127.0.0.1:8127](http://127.0.0.1:8127) in a WebGL 2 browser. The lo
 
 On a touch device, drag the scene to look around and use the on-screen controls. Check the journal for both escape routes. Drawers and cupboards can hold tools, and item locations vary by run. Items and escape progress carry over after capture. Difficulty is chosen at the start of a run.
 
+## Multiplayer
+
+Open **Multiplayer** on the server-hosted game and sign in. **Co-op vs. AI** takes two to four Survivors. **Survivors vs. Granny** takes one human Granny and one to four Survivors. Create a private room to share a code or invite accepted friends, or use **Quick Match** to join the public queue. In a hosted room, pick a preferred role and mark yourself ready. The host can start when everyone is ready or fill empty seats through public matchmaking.
+
+Survivors share both escape routes. Press **E** near a captured teammate to rescue them before the window closes. Granny uses **E** to open a door or swing at a Survivor, **Q** to set a snare, and **X** to bolt an ordinary door. Snares and bolts have cooldowns. An escaped or eliminated Survivor can watch a teammate while the remaining players finish.
+
+The match keeps running while menus are open. A disconnected player has 45 seconds to reconnect. The room remains on the Multiplayer screen after a reload in the same tab, and the invite code can also be used to reconnect. Public PvP matches can earn competitive points. Private, short, forfeited, and repeat-opponent matches within six hours are casual.
+
+Proximity voice is off by default. The host can allow it, then each player can opt in from the match menu. Hold **V** or the touch **Talk** button to transmit to nearby players, including Granny. Voice uses direct WebRTC and can fail on restrictive networks that require a relay. Lobby and team text chat are available separately.
+
 ## Player accounts
 
 Choose a gamer tag and password to create your profile and start playing ranked. Gamer tags are unique regardless of case. Supabase Auth manages passwords, and the game keeps session tokens in secure HTTP-only cookies on HTTPS. Store your password safely because the game has no email-based recovery. Sites installations can also offer ChatGPT sign-in.
@@ -45,7 +55,7 @@ The browser sends movement, look and action inputs in sequence. The server assig
 
 ## GitHub Pages
 
-The public [GitHub Pages edition](https://thealanlu.github.io/blackmere-house/) runs the full guest game, including both escape routes and touch controls. It links to the hosted edition for accounts, friends, and rankings.
+The public [GitHub Pages edition](https://thealanlu.github.io/blackmere-house/) runs the full guest game, including both escape routes and touch controls. It links to the hosted edition for multiplayer, accounts, friends, and rankings.
 
 Run `node scripts/pages.mjs` to generate the static site in `.pages/`. The Pages workflow publishes it whenever changes land on `main`.
 
@@ -70,10 +80,11 @@ Never place a service-role key in the game code. The integration uses the publis
 
 - `dist/src/game.js`, `world.js`, `caretaker.js`, and `audio.js` render the mansion and character, handle player input, and play spatial sound.
 - `dist/src/simulation.js`, `stalker.js`, and `navigation.js` implement the deterministic game rules used by the browser and server.
+- `dist/src/match.js` and `server/multiplayer.js` run authoritative multiplayer matches. Players send inputs and receive snapshots over HTTPS. The server commits each room update against its last stored revision.
 - `scripts/level.mjs` derives the simulation level from the rendered mansion, keeping collision and interaction positions aligned.
 - `server/` contains authentication, profile, social and ranking endpoints.
 - `drizzle/` holds the production schema. `scripts/sqlite.mjs` provides a local SQLite adapter for development and tests.
 
-Run `npm run build && npm test` to check both escape routes, enemy behavior, replay validation, account routes, and social permissions. The authentication suite uses a controlled Supabase response fixture.
+Run `npm run build && npm test` to check both escape routes, enemy behavior, replay validation, account routes, social permissions, and multiplayer rules. The authentication suite uses a controlled Supabase response fixture.
 
 See [third-party notices](dist/third-party-notices.txt) for asset attribution.

@@ -31,7 +31,11 @@ export function createAudio() {
     if(pos) {
       const dx=pos.x-origin.x,dz=pos.z-origin.z,d=Math.hypot(dx,dz);
       const pan=ctx.createStereoPanner();pan.pan.value=Math.max(-.94,Math.min(.94,(dx*Math.cos(dir)-dz*Math.sin(dir))/(d||1)));
-      node.connect(pan).connect(g);g.gain.value=dry/(1+d*.19);
+      if(pos.muffled) {
+        const low=ctx.createBiquadFilter();low.type='lowpass';low.frequency.value=590;
+        node.connect(low).connect(pan);
+      } else node.connect(pan);
+      pan.connect(g);g.gain.value=dry*(pos.spatialGain??1)/(1+d*.19);
     }else {node.connect(g);g.gain.value=dry;}
     g.connect(listener);if(echo)g.connect(room);
   }
@@ -92,6 +96,7 @@ export function createAudio() {
       noise(1.04,220,.11,pos,0,'lowpass');
       tone(.73,124,95,.025,pos,'triangle',.09);
     }
+    if(kind==='swing')noise(.28,935,.20,pos,0,'bandpass');
     if(kind==='attack') {
       score?.duck(1);
       noise(.78,1470,.65,pos,0,'bandpass');noise(.56,380,.48,pos);
