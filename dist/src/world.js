@@ -3,8 +3,9 @@ import { mat, materials as m, rng } from './materials.js';
 
 import {floorY,itemInfo} from './rules.js';
 
-export function createWorld(scene) {
+export function createWorld(scene,{legacy=false}={}) {
   const solid=[], doors=[], objects=[], lights=[], hiding=[], items=[], staticShapes=new Map();
+  const walls=[],passages=[],extraDoors=[];
   const rngWorld=rng(83415);
   const w=new T.Group();scene.add(w);
   const boxGeo=new T.BoxGeometry(1,1,1);
@@ -35,6 +36,7 @@ export function createWorld(scene) {
     const horiz=axis==='x', center=(a+b)/2, length=b-a;
     const basement=kind==='stone';
     const x=horiz?center:fixed,z=horiz?fixed:center;
+    walls.push({x,z,dx:horiz?length:.22,dz:horiz?.22:length});
     const bottom=basement?-1.19:0;
     const h=3.38-bottom;
     obstacle(x,z,horiz?length:.22,horiz?.22:length);
@@ -58,6 +60,8 @@ export function createWorld(scene) {
   function doorway(axis,fixed,center,options={}) {
     const horiz=axis==='x', width=options.width??1.52, bottom=options.bottom??0;
     const x=horiz?center:fixed,z=horiz?fixed:center;
+    const passage={x,z,axis,width,name:options.name};
+    passages.push(passage);
     const frame=prop(x,bottom,z);if(!horiz)frame.rotation.y=toRad;
     const material=options.secret?m.darkWood:options.metal?m.iron:m.darkWood;
     for(const s of [-1,1]) {
@@ -101,7 +105,10 @@ export function createWorld(scene) {
       }
       box(.04,-.19,-.04,.16,.18,.09,m.brass,d.chain);
     }
-    doors.push(d);objects.push(d);return d;
+    passage.door=d;
+    if(options.extra)extraDoors.push(d);
+    else {doors.push(d);objects.push(d);}
+    return d;
   }
   function partition(axis,fixed,a,b,openings=[],kind) {
     let p=a;
@@ -121,9 +128,11 @@ export function createWorld(scene) {
   partition('z',14,-5,13);
   partition('z',-2.25,-13,13,[[-8.7,{name:'Study Door'}],[-.8,{name:'Music Room Door'}],[8.3,{name:'Bedroom Door'}]]);
   partition('z',2.25,-13,13,[[-8.7,{name:'Cellar Door',metal:true}],[-1.1,{name:'Kitchen Door'}],[8.3,{name:'Drawing Room Door'}]]);
-  partition('x',-5,-14,-2.25,[[-10.6,{name:'Pivoting Bookcase',secret:true,width:1.65}]]);
-  partition('x',3.8,-14,-2.25);
-  partition('x',-5,2.25,14,[],'stone');
+  const studyOpenings=[[-10.6,{name:'Pivoting Bookcase',secret:true,width:1.65}]];
+  if(!legacy)studyOpenings.push([-7.65,{name:'Study Passage Door',extra:true}]);
+  partition('x',-5,-14,-2.25,studyOpenings);
+  partition('x',3.8,-14,-2.25,legacy?[]:[[-7.65,{name:'Bedroom Passage Door',extra:true}]]);
+  partition('x',-5,2.25,14,legacy?[]:[[3.68,{name:'Kitchen Cellar Door',extra:true,metal:true,width:1.58}]],'stone');
   partition('x',3.8,2.25,14,[[10.6,{name:'Service Arch',openPassage:true,width:1.65}]]);
   function flatFloor(x0,x1,z0,z1,material,y=0) {
     surface((x0+x1)/2,y,(z0+z1)/2,x1-x0,z1-z0,material,(x1-x0)/2.9,(z1-z0)/3.5,-toRad);
@@ -224,22 +233,32 @@ export function createWorld(scene) {
     const obj={kind:'drawer',x:x+Math.sin(angle)*.43,y:.74,z:z+Math.cos(angle)*.43,drawer,name,open:false};
     objects.push(obj);return obj;
   }
-  function wardrobe(x,z,angle,hide=true) {
-    const o=prop(x,0,z);o.rotation.y=angle;
+  function wardrobe(x,z,angle,hide=true,recess=false) {
+    const floor=recess?floorY(x,z):0,scale=recess?.64:1;
+    const o=prop(x,floor,z);o.rotation.y=angle;o.scale.y=scale;
     box(0,1.15,-.38,1.67,2.26,.09,m.darkWood,o);
     for(const s of [-1,1])box(s*.82,1.15,0,.115,2.29,.84,m.wood,o);
     box(0,2.29,0,1.82,.16,.98,m.trim,o);box(0,.11,0,1.74,.22,.84,m.darkWood,o);
     if(!hide)box(0,1.05,0,1.52,.093,.78,m.wood,o);
     const panels=[];
+    const gap=hide&&!legacy?.13:0;
     for(const s of [-1,1]) {
       const p=new T.Group();p.position.set(s*.76,0,.43);o.add(p);panels.push(p);
-      box(-s*.38,1.19,0,.745,2.14,.085,m.wood,p);
-      for(const y of [.59,1.59])box(-s*.38,y,.047,.54,.76,.047,m.darkWood,p);
+      const center=-s*(.38-gap*.25);
+      box(center,1.19,0,.745-gap*.5,2.14,.085,m.wood,p);
+      for(const y of [.59,1.59])box(center,y,.047,.54,.76,.047,m.darkWood,p);
       box(-s*.64,1.16,.072,.049,.14,.049,m.brass,p);
     }
     obstacle(x,z,Math.abs(Math.cos(angle))>.5?1.79:.86,Math.abs(Math.cos(angle))>.5?.86:1.79);
-    const obj={kind:hide?'hide':'cabinet',type:'wardrobe',x:x+Math.sin(angle)*.46,y:1.16,z:z+Math.cos(angle)*.46,
-      anchor:[x,z],yaw:angle,panels,name:hide?'Wardrobe':'Wall Cabinet',open:false};
+    const at=distance=>[x+Math.sin(angle)*distance,z+Math.cos(angle)*distance];
+    const [frontX,frontZ]=at(.46);
+    const obj={kind:hide?'hide':'cabinet',type:recess?'compartment':'wardrobe',x:frontX,y:floor+1.16*scale,z:frontZ,
+      anchor:[x,z],yaw:angle,panels,name:recess?'Coal Recess':hide?'Wardrobe':'Wall Cabinet',open:false};
+    if(hide&&!legacy) {
+      const [viewX,viewZ]=at(.24);
+      obj.view=[viewX,floor+1.42*scale,viewZ];
+      obj.peek=at(.62);obj.exit=at(.88);obj.look=recess?.42:.39;
+    }
     objects.push(obj);if(hide)hiding.push(obj);
     return obj;
   }
@@ -290,6 +309,14 @@ export function createWorld(scene) {
   carpetSign('KITCHEN',2.077,2.61,-1.1,-toRad);
   carpetSign('CELLAR',2.077,2.61,-8.7,-toRad);
   carpetSign('FRONT DOOR',0,2.61,12.80,Math.PI);
+  if(!legacy) {
+    carpetSign('MUSIC PASSAGE',-7.65,2.61,4);
+    carpetSign('WEST BEDROOM',-7.65,2.61,3.60,Math.PI);
+    carpetSign('STUDY PASSAGE',-7.65,2.61,-4.80);
+    carpetSign('MUSIC ROOM',-7.65,2.61,-5.20,Math.PI);
+    carpetSign('CELLAR ACCESS',3.68,2.61,-4.80);
+    carpetSign('KITCHEN',3.68,2.61,-5.20,Math.PI);
+  }
 
   const bed=prop(-10.7,0,9.6);
   box(0,.47,0,1.95,.19,3.06,m.darkWood,bed);
@@ -302,6 +329,7 @@ export function createWorld(scene) {
   }
   obstacle(-10.7,9.6,1.97,3.04);
   const underBed={kind:'hide',type:'bed',x:-10.7,y:.52,z:11.21,anchor:[-10.7,9.94],yaw:0,name:'Under the Bed'};
+  if(!legacy)Object.assign(underBed,{view:[-10.7,.268,10.83],peek:[-10.7,11.25],exit:[-10.7,11.54],look:.63});
   objects.push(underBed);hiding.push(underBed);
   const keyDrawer=dresser(-5.3,11.99,Math.PI,'Bedroom Drawer');
   const keyDrawerB=dresser(-12.92,7.12,toRad,'Nightstand');
@@ -421,10 +449,23 @@ export function createWorld(scene) {
     crank:[crankCab,{x:crankTable.position.x,y:.91,z:crankTable.position.z}]
   };
   Object.keys(itemSpots).forEach(makeItem);
+  if(!legacy) {
+    doors.push(...extraDoors);objects.push(...extraDoors);
+    const behindSofa={kind:'hide',type:'furniture',name:'Behind the Sofa',x:10.12,y:.68,z:11.57,
+      anchor:[10.41,12.14],view:[10.36,.71,12.09],peek:[10.04,11.96],exit:[9.89,11.61],yaw:-Math.PI*.73,look:.65};
+    objects.push(behindSofa);hiding.push(behindSofa);
+    wardrobe(10.72,-5.58,Math.PI,true,true);
+  }
   function setContainer(o,open) {
     o.open=open;
-    if(o.drawer)o.drawer.position.z=open?.59:.349;
-    if(o.panels)o.panels.forEach((p,i)=>{p.rotation.y=open?(i===0?1:-1)*1.03:0;});
+  }
+  const containers=objects.filter(o=>o.drawer||o.panels);
+  function updateContainers(dt) {
+    const ease=(from,to)=>dt?T.MathUtils.damp(from,to,12,dt):to;
+    for(const o of containers) {
+      if(o.drawer)o.drawer.position.z=ease(o.drawer.position.z,o.open?.59:.349);
+      if(o.panels)o.panels.forEach((p,i)=>{p.rotation.y=ease(p.rotation.y,o.open?(i===0?1:-1)*1.03:0);});
+    }
   }
   const animated=new Set([gate,gateWheel,fuseBox.lamp,...items.map(i=>i.mesh),...doors.flatMap(d=>[d.pivot,d.chain]),...objects.flatMap(o=>[o.drawer,...(o.panels??[])])]);
   w.updateMatrixWorld(true);
@@ -450,7 +491,7 @@ export function createWorld(scene) {
     instance.receiveShadow=true;instance.castShadow=true;w.add(instance);
   }
   let gateTarget=0;
-  return {root:w,solid,doors,objects,lights,hiding,items,itemSpots,gateBlock,setContainer,
+  return {root:w,solid,doors,objects,lights,hiding,items,itemSpots,gateBlock,walls,passages,setContainer,updateContainers,
     power(on){fuseBox.lamp.material=on?m.cold:m.rust;hatch.wheel.rotation.z=on?.5:0;},
     openGate(on){gateBlock.enabled=!on;gateTarget=on?2.3:0;if(!on)gate.position.y=0;},
     updateGate(dt){gate.position.y=T.MathUtils.damp(gate.position.y,gateTarget,4,dt);}

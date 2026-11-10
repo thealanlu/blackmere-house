@@ -36,7 +36,7 @@ export function proximityVoice(room,report,muted) {
     const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.cloudflare.com:3478'}]});
     const destination=context.createMediaStreamDestination(),out=context.createGain(),output=context.createGain();
     out.gain.value=0;
-    output.gain.value=muted(id)?0:1;
+    output.gain.value=muted(id)||!info.gain?0:1;
     microphone.connect(out).connect(destination);output.connect(context.destination);
     const peer={...info,pc,out,output,track:destination.stream.getAudioTracks()[0],ice:[],input:null,failed:false};
     peers.set(id,peer);
@@ -82,7 +82,7 @@ export function proximityVoice(room,report,muted) {
     for(const p of peers.values()) {
       const available=fresh&&!blocked.has(p.id);
       p.out.gain.setTargetAtTime(available&&held?p.gain:0,now,.024);
-      p.output.gain.setTargetAtTime(available&&!muted(p.id)?1:0,now,.03);
+      p.output.gain.setTargetAtTime(available&&p.gain>0&&!muted(p.id)?1:0,now,.03);
     }
   }
   async function poll(token) {

@@ -66,7 +66,7 @@ export function survivorModel(index) {
   },pose(pose,time,dt) {
     const damp=T.MathUtils.damp;
     const kneel=pose.status==='captured',crouch=pose.crouch||kneel;
-    const bend=kneel?1.14:crouch?.92:0;
+    const bend=kneel?1.14:crouch?.92:(pose.emerging??0)*.82;
     body.position.y=damp(body.position.y,-.86*(1-Math.cos(bend)),12,dt);
     body.rotation.x=damp(body.rotation.x,crouch?.10:pose.pace*.045,12,dt);
     head.rotation.x=damp(head.rotation.x,-pose.pitch*.50,12,dt);

@@ -1,8 +1,10 @@
 export const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 export function smoothstep(x,a,b){const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);}
 export const TICK=1/30;
+export const DOOR_ALERT_MS=5000;
 export const PRE_SLOWDOWN_RUN_VERSION=2;
-export const RUN_VERSION=3;
+export const PRE_LAYOUT_RUN_VERSION=3;
+export const RUN_VERSION=4;
 export const MAX_TICKS=30*60*25;
 export const levels={
   story:{label:'Story',caption:'Longer grace period and gentler pursuit.',walk:.90,chase:1.82,vision:7.1,hearing:.75,grace:17,inspect:.32,points:1000},
@@ -21,7 +23,10 @@ export function runScore(difficulty,ticks,deaths,route){
 }
 export const SPAWN = {x:-7.65,z:8.3,yaw:-Math.PI/2};
 export const bounds = {x0:-14,x1:14,z0:-13,z1:13};
-export const floorY = (x,z) => z < -5.12 ? -1.15*smoothstep(x,5.6,8.8) : 0;
+const cellarRamp={start:5.6,end:8.8,edge:-5.12};
+export const floorY=(x,z)=>z<cellarRamp.edge?-1.15*smoothstep(x,cellarRamp.start,cellarRamp.end):0;
+export const floorAt=(x,z)=>floorY(x,z)<-.575?'cellar':'main';
+export const cellarMapBounds={x0:(cellarRamp.start+cellarRamp.end)/2,x1:bounds.x1+.3,z0:bounds.z0,z1:cellarRamp.edge};
 export const areas=[
   ['West Bedroom',-14,-2.25,3.8,13],['Music Room',-14,-2.25,-5,3.8],
   ['Study',-14,-2.25,-13,-5],['Drawing Room',2.25,14,3.8,13],

@@ -4,6 +4,8 @@ import {build} from 'esbuild';
 import './level.mjs';
 import {buildPwa} from './pwa.mjs';
 
+const {validateMansion}=await import('./validate-level.mjs');
+validateMansion();
 await buildPwa(new URL('../dist/',import.meta.url));
 
 const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8',

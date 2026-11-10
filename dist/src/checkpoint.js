@@ -1,5 +1,7 @@
 import level from './level-data.js';
+import legacy from './level-legacy.js';
 import {bounds,levels} from './rules.js';
+import {HIDE_EXIT_TICKS} from './hide-view.js';
 
 export const CHECKPOINT_VERSION=2;
 
@@ -19,6 +21,8 @@ export function validCheckpoint(value) {
   const s=value.state,p=s.player,b=s.brain;
   if(!['play','interlude'].includes(s.mode)||!int(s.day,1,5)||!int(s.tick,0,900_000)||!int(s.rng,0,4294967295)||
     !look(p)||!flags(p,['crouch'])||!hide(p.hidden)||!finite(p.eye,-1.2,2.4)||
+    !(p.hideExit===undefined&&p.hideLeave===undefined||
+      p.hidden!==null&&int(p.hideExit,1,HIDE_EXIT_TICKS)&&place(p.hideLeave))||
     !(s.hiddenFrom===null||look(s.hiddenFrom))||!flags(s,['tired','flash'])||
     !flags(s.progress,['cut','unlock','power','handle'])||!finite(s.stamina,0,1)||!finite(s.step,-.1,1)||
     !Array.isArray(s.inventory)||s.inventory.length>4||!s.inventory.every(item)||!int(s.selected,0,3)||
@@ -45,5 +49,5 @@ export function validCheckpoint(value) {
     }else if(!(o.blocker!==undefined||o.kind==='drawer'||o.panels)||!flags(p,['open'])||
       !(p.swing===undefined||finite(p.swing,-2,2))||Object.keys(p).some(k=>!['open','swing'].includes(k)))return false;
   }
-  return level.objects.every((o,i)=>!(o.kind==='item'||o.blocker!==undefined||o.kind==='drawer'||o.panels)||seen.has(i));
+  return legacy.objects.every((o,i)=>!(o.kind==='item'||o.blocker!==undefined||o.kind==='drawer'||o.panels)||seen.has(i));
 }

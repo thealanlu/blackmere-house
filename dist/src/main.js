@@ -233,7 +233,16 @@ const ui={
   area(name){$('area').textContent=name;},
   flash(on){$('flashLabel').textContent=on?'LIGHT ON':'LIGHT OFF';},
   mouseHint(show){$('mouseHint').hidden=!show;},
-  hide(active){$('gameShade').classList.toggle('hide',active);},
+  hide(type){
+    const shade=$('gameShade');
+    shade.classList.toggle('hide',Boolean(type));
+    if(type&&shade.dataset.cover!==type)shade.dataset.cover=type;
+    else if(!type&&shade.dataset.cover)delete shade.dataset.cover;
+  },
+  coverTransition(amount){
+    const style=$('gameShade').style,value=amount.toFixed(2);
+    if(style.getPropertyValue('--cover-fade')!==value)style.setProperty('--cover-fade',value);
+  },
   match(packet){multiplayer?.hud(packet);},
   matchConnection(text){multiplayer?.connection(text);},
   rankResult(data,error) {

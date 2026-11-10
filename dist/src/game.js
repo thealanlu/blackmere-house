@@ -1,13 +1,15 @@
 import * as T from '../vendor/three.module.js';
 import { createWorld } from './world.js';
 import { createCaretaker } from './caretaker.js';
-import { floorY, areaAt, TICK } from './rules.js';
+import { floorY, areaAt, smoothstep, TICK } from './rules.js';
 import { CHECKPOINT_VERSION } from './checkpoint.js';
 import { createSimulation, moveSurvivor, key, action } from './simulation.js';
 import { createAudio } from './audio.js';
 import { rng,setMaterialQuality } from './materials.js';
 import { moveGranny, skill } from './match.js';
 import { survivorModel } from './survivor.js';
+import { mansionMap } from './minimap.js';
+import { HIDE_EXIT_TICKS,limitHideLook } from './hide-view.js';
 import { adaptiveResolution,pixelRatio,presets,recommendedPreset } from './performance.js';
 import { aimAxis,bindJoystick,gyroControl,movementBits,padButtons,supportedPad } from './input.js';
 
@@ -52,6 +54,10 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
   const dust=new T.Points(dustGeo,new T.PointsMaterial({color:0xc3b8a0,map:new T.CanvasTexture(dustTex),size:.042,transparent:true,opacity:.32,depthWrite:false,blending:T.AdditiveBlending}));
   scene.add(dust);
   const world=createWorld(scene);
+  const map=mansionMap({
+    canvas:document.querySelector('#mansionMap'),floorLabel:document.querySelector('#mapFloor'),
+    button:document.querySelector('#mapSwitch'),notice:document.querySelector('#mapNotice')
+  },settings);
   const rig=createCaretaker();scene.add(rig.root);
   const remotes=new Map(),traps=new T.Group();
   const snareGeo=new T.TorusGeometry(.19,.019,6,20),snareMat=new T.MeshStandardMaterial({color:0x745344,metalness:.64,roughness:.71});
@@ -67,6 +73,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
   let quality,frameTarget=1000/60,nextFrame=0,hudTick=0;
   let online,netState,netKeys=0,netClock=0,netFrame=0,trapSignature='';
   let solo=false,nextSave=0;
+  let lastCover=null,hideEntry=null;
   const joystick=bindJoystick(document.querySelector('#joystick'),document.querySelector('#joystickThumb'),()=>ui.control('touch'));
   const gyro=gyroControl((x,y)=>look(x,y,settings.touchSensitivity),()=>mode==='play'&&settings.gyro&&ui.controlKind()==='touch');
   let pad,padHeld=[],lastKeys=0;
@@ -128,6 +135,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
   }
   function beginMatch(link) {
     audio.init();solo=false;online=link;netState=null;netKeys=0;transition++;time=0;previousArea='';
+    map.reset();lastCover=null;hideEntry=null;
     clearInput();mode='play';audio.enable(true);ui.show('play');ui.matchConnection('Connecting to the house…');
     link.start(receiveMatch,text=>ui.matchConnection(text));
     lock();
@@ -163,6 +171,10 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
       p.crouch=body.crouch;
       sim.nav.move(p,(next.x-p.x)*.34,(next.z-p.z)*.34,s.role==='granny'?.24:.23);
     }
+    if(body.hideExit){p.hideExit=body.hideExit;p.hideLeave=body.hideLeave;}
+    else {delete p.hideExit;delete p.hideLeave;}
+    if(p.hidden!==null)p.eye=body.eye;
+    for(const [door,opened] of packet.doorAlerts??[])map.alert(door,packet.clock-opened,opened);
     audio.listen(p);
     for(const event of packet.events)playMatchEvent(event);
     if(!previous){syncWorld(0);syncHUD();updateCamera(0);startFrames();}
@@ -199,6 +211,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
   }
   function startNight() {
     attacker=null;randomSound=8;bob=0;bobStrength=0;previousArea='';clearInput();
+    map.reset();lastCover=null;hideEntry=null;
     mode='play';audio.enable(true);
     ui.show('play');ui.night(sim.state.day,chapters[sim.state.day-1]);
     syncWorld(0);syncHUD();updateCamera(0);
@@ -213,6 +226,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
       else {audio.play(data.kind,data.at);caption(data.kind,player,data.at);}
     }
     if(kind==='toast'){ui.toast(data);pulse(14);}
+    if(kind==='grannyDoor')map.alert(data.door);
     if(kind==='note')pause('note',data);
     if(kind==='caught')caught(data);
   }
@@ -309,6 +323,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     if(e.repeat)return;
     if(e.code==='Escape'||e.code==='KeyP')pause();
     if(e.code==='Tab')pause('journal');
+    if(e.code==='KeyM')map.toggle();
     if(actionKeys[e.code])pending|=actionKeys[e.code];
     if(online&&matchKeys[e.code])pending|=matchKeys[e.code];
     if(/^Digit[1-4]$/.test(e.code))slot=Number(e.code.at(-1))-1;
@@ -382,6 +397,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     const p=padButtons;
     if(edge(p.pause)||edge(p.back))pause();
     else if(edge(p.journal))pause('journal');
+    if(edge(14))map.toggle();
     if(edge(p.use))pending|=action.use;
     if(edge(p.crouch))pending|=action.crouch;
     if(edge(p.light))pending|=action.light;
@@ -415,7 +431,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     const s=sim.state,p=s.player;
     ui.updateInventory(s.inventory.map(i=>sim.world.objects[i]),s.selected);
     ui.updateObjectives(s.progress);ui.stamina(s.stamina,sprint);ui.flash(s.flash);
-    ui.hide(p.hidden!==null);
+    ui.hide(sim.world.objects[p.hidden]?.type);
   }
   function syncWorld(dt) {
     const s=sim.state;
@@ -432,7 +448,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
         if(model.chain)model.chain.visible=!s.progress.cut;
       }else if((model.drawer||model.panels)&&Boolean(model.open)!==Boolean(o.open))world.setContainer(model,o.open);
     }
-    world.power(s.progress.power);world.openGate(s.progress.handle);world.updateGate(dt);
+    world.power(s.progress.power);world.openGate(s.progress.handle);world.updateGate(dt);world.updateContainers(dt);
     if(online){syncAvatars(dt);return;}
     const brain=s.brain,a=brain.actor;
     rig.root.position.set(a.x,floorY(a.x,a.z),a.z);
@@ -488,9 +504,10 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     if(canMove) {
       p.yaw=Math.atan2(Math.sin(p.yaw+next[1]/1000),Math.cos(p.yaw+next[1]/1000));
       p.pitch=clamp(p.pitch+next[2]/1000,-1.43,1.43);
+      if(p.hidden!==null)limitHideLook(p,sim.world.objects[p.hidden]);
     }
     online.input(netKeys,p.yaw,p.pitch,canMove?next[3]:0,canMove?next[4]:-1);
-    online.talk(canMove&&(held.has('KeyV')||padHeld[padButtons.talk]));
+    online.talk(canMove&&p.hidden===null&&(held.has('KeyV')||padHeld[padButtons.talk]));
     if(!canMove)return;
     const now=netClock+Math.min(550,performance.now()-netFrame);
     if(granny) {
@@ -500,11 +517,37 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
   }
   function updateCamera(dt) {
     const p=sim.state.player;
-    const bobbing=settings.motion?Math.sin(bob)*bobStrength:0;
-    eye=dt?damp(eye,p.eye+bobbing,17,dt):p.eye;
-    camera.position.set(p.x,eye,p.z);
+    const cover=sim.world.objects[p.hidden]??null;
+    const bobbing=settings.motion&&!cover?Math.sin(bob)*bobStrength:0;
+    if(cover!==lastCover) {
+      hideEntry=cover&&dt&&settings.motion?{at:camera.position.clone(),age:0}:null;
+      lastCover=cover;
+    }
+    let x=p.x,z=p.z,y=p.eye+bobbing,fade=0;
+    if(cover) {
+      [x,y,z]=cover.view;
+      if(hideEntry) {
+        const t=(hideEntry.age+=dt)/.38,{at}=hideEntry;
+        const slide=smoothstep(t,.14,.91),lower=smoothstep(t,0,.63);
+        x=T.MathUtils.lerp(at.x,x,slide);z=T.MathUtils.lerp(at.z,z,slide);y=T.MathUtils.lerp(at.y,y,lower);
+        fade=Math.sin(Math.PI*clamp(t,0,1))*.87;
+        if(t>=1)hideEntry=null;
+      }else if(p.hideExit&&settings.motion) {
+        const elapsed=online?Math.min(4,(performance.now()-netFrame)*.03):0;
+        const t=clamp(1-(p.hideExit-elapsed)/HIDE_EXIT_TICKS,0,1);
+        const [px,pz]=cover.peek,at=p.hideLeave;
+        const cross=smoothstep(t,0,.67),step=smoothstep(t,.53,1);
+        x=T.MathUtils.lerp(T.MathUtils.lerp(x,px,cross),at.x,step);
+        z=T.MathUtils.lerp(T.MathUtils.lerp(z,pz,cross),at.z,step);
+        y=T.MathUtils.lerp(y,floorY(at.x,at.z)+(cover.type==='wardrobe'?1.66:1.03),smoothstep(t,.61,1));
+        fade=Math.sin(Math.PI*t)*.72;
+      }
+    }
+    ui.coverTransition(fade);
+    eye=dt?damp(eye,y,17,dt):y;
+    camera.position.set(x,eye,z);
     if(mode!=='caught'){cameraYaw=p.yaw;cameraPitch=p.pitch;}
-    let tilt=settings.motion?Math.cos(bob*.5)*bobStrength*.44:0;
+    let tilt=settings.motion&&!cover?Math.cos(bob*.5)*bobStrength*.44:0;
     if(mode==='caught'&&attacker) {
       const t=clamp((time-scareStart)/scareTime,0,1),x=attacker.x-p.x,z=attacker.z-p.z;
       const d=Math.max(.34,Math.hypot(x,z)),angle=Math.atan2(-x,-z);
@@ -570,8 +613,8 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
         bobStrength=damp(bobStrength,moving?(sprint?.039:p.crouch?.013:.021):0,14,dt);
         audio.listen(p);
         const threat=online?netState.ai?.state??'patrol':s.brain.state;
-        audio.update(dt,tension,sprint,threat==='chase'||Boolean(online&&tension>.70));
-        ui.threat(threat,tension);ui.stamina(s.stamina,sprint);ui.hide(p.hidden!==null);ui.flash(s.flash);
+        audio.update(dt,tension,sprint,threat==='chase'||Boolean(online&&tension>.70),p.hidden!==null);
+        ui.threat(threat,tension);ui.stamina(s.stamina,sprint);ui.hide(sim.world.objects[p.hidden]?.type);ui.flash(s.flash);
         const progress=JSON.stringify(s.progress),inventory=s.inventory.join(',')+':'+s.selected;
         if(progress!==lastProgress){lastProgress=progress;ui.updateObjectives(s.progress);}
         if(inventory!==lastInventory){lastInventory=inventory;ui.updateInventory(s.inventory.map(i=>sim.world.objects[i]),s.selected);}
@@ -583,6 +626,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
         const area=areaAt(p.x,p.z);
         if(area!==previousArea){previousArea=area;ui.area(area);}
         if((hudTick-=dt)<=0){hudTick=.052;ui.prompt(online?matchPrompt(p):sim.prompt());}
+        map.draw(p,sim,netState,dt);
       }
     }
     syncWorld(dt);updateCamera(dt);updateLighting(dt);

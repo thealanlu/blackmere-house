@@ -36,6 +36,33 @@
 .hud-top{top:calc(clamp(9px,2vh,22px) + var(--safe-top))}
 .hud-bottom{bottom:calc(clamp(10px,2vh,32px) + var(--safe-bottom))}
 .mp-hud{top:calc(clamp(9px,2vh,20px) + var(--safe-top))}
+.minimap{
+  --map-width:clamp(123px,15vw,174px);
+  position:absolute;top:calc(63px + var(--safe-top));left:calc(clamp(10px,3vw,48px) + var(--safe-left));
+  width:var(--map-width);overflow:hidden;isolation:isolate;
+  border:1px solid #bc9f6a73;border-radius:5px;background:#101814ed;box-shadow:0 3px 16px #0009;
+  color:#ead8b8;text-shadow:none;
+}
+.map-head{display:flex;align-items:center;justify-content:space-between;min-height:28px;padding:0 5px 0 8px;gap:3px}
+.map-head span{font:650 clamp(.58rem,1.2vw,.72rem)/1.15 system-ui,sans-serif}
+.map-head button{
+  pointer-events:auto;min-width:27px;min-height:23px;margin:2px 0;padding:2px;
+  border:1px solid #c5ad7970;border-radius:3px;color:#f2d5a6;background:#3b3326;
+  font:650 .65rem ui-monospace,monospace;touch-action:manipulation;
+}
+#mansionMap{display:block;width:100%;height:auto;aspect-ratio:1.12;border-block:1px solid #b8986b3b}
+.map-key{display:flex;justify-content:space-between;gap:2px;padding:4px 6px;color:#dfd7c6;font-size:clamp(.48rem,1vw,.61rem)}
+.map-key span{display:flex;align-items:center;gap:2px;white-space:nowrap}
+.map-key i{width:7px;height:2px;background:#dacdb2}
+.map-key span:first-child i{background:linear-gradient(90deg,#86ae92 45%,transparent 45%,transparent 60%,#86ae92 60%)}
+.map-key span:last-child i{background:#d09a70}
+#gameShade::after{content:"";position:absolute;inset:0;background:#040706;opacity:var(--cover-fade,0)}
+#gameShade.hide[data-cover="bed"]{background:radial-gradient(ellipse 68% 26% at 50% 52%,transparent 38%,#0008 90%,#000)}
+#gameShade.hide[data-cover="wardrobe"],#gameShade.hide[data-cover="compartment"]{
+  background:radial-gradient(ellipse 42% 76% at 50% 49%,transparent 26%,#030605bf 78%,#000)
+}
+#gameShade.hide[data-cover="furniture"]{background:radial-gradient(ellipse 55% 52% at 49% 51%,transparent 32%,#000d 96%,#000)}
+#gameShade.hide ~ .hud .minimap{opacity:.86}
 .touch-top,.touch-controls{display:none}
 .hud-journal,.flash{display:flex}
 html[data-controls="touch"] .touch-top{display:flex;gap:6px;pointer-events:auto;flex:none}
@@ -92,6 +119,12 @@ html[data-controls="touch"] .hud:has(.mp-hud:not([hidden])) .footstep-cue{top:ca
   .menu-dialog .player-actions button{padding-inline:8px}
 }
 @media(max-width:640px){
+  .minimap{--map-width:clamp(90px,26vw,111px);top:calc(61px + var(--safe-top))}
+  .map-head{padding-left:5px;min-height:30px}
+  .map-head button{min-width:32px;min-height:32px}
+  .map-key{padding-inline:4px}
+  .map-key i{width:5px}
+  .rotate-hint{left:auto;right:calc(10px + var(--safe-right));transform:none;max-width:calc(100% - 140px - var(--safe-left) - var(--safe-right))}
   .location{gap:6px}
   .location .stamp svg{width:26px;height:26px}
   .location strong{font-size:clamp(.91rem,4.2vw,1.18rem);overflow-wrap:anywhere}
@@ -110,6 +143,9 @@ html[data-controls="touch"] .hud:has(.mp-hud:not([hidden])) .footstep-cue{top:ca
   .mp-hud>div{font-size:.61rem}
 }
 @media(orientation:landscape) and (max-height:550px){
+  .minimap{--map-width:clamp(89px,25vh,112px);top:calc(56px + var(--safe-top))}
+  .map-head{min-height:25px}
+  .map-head button{min-height:22px}
   .touch-controls{--stick-size:calc(clamp(73px,24vh,108px) * var(--stick-factor))}
   .touch-actions{width:min(27vw,224px);grid-template-columns:repeat(3,minmax(45px,1fr))}
   #touchUse{grid-column:1/-1}

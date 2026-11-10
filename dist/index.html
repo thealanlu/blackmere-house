@@ -322,7 +322,8 @@
           <dl class="controls-list"><dt>Interact / hide / use tool</dt><dd><kbd>E</kbd></dd><dt>Choose slot / drop</dt><dd><kbd>1–4</kbd> <kbd>G</kbd></dd><dt>Flashlight / journal</dt><dd><kbd>F</kbd> <kbd>Tab</kbd></dd><dt>Pause</dt><dd><kbd>Esc</kbd> <span>or</span> <kbd>P</kbd></dd></dl>
         </section>
       </div>
-      <div class="guide-tip"><svg aria-hidden="true"><use href="#flashIcon"/></svg><div><strong>Stay quiet</strong><p>Crouch to muffle your steps or drop a tool to draw her away. Directional captions show nearby footsteps and other loud sounds. You can turn them off in Settings.</p></div></div>
+      <div class="guide-tip"><svg aria-hidden="true"><use href="#flashIcon"/></svg><div><strong>Stay quiet</strong><p>Crouch to muffle your steps or drop a tool to draw her away. Designated hiding spots are safe until you leave. Look through the gap before stepping out.</p></div></div>
+      <div class="guide-tip"><svg aria-hidden="true"><use href="#house"/></svg><div><strong>Read the house</strong><p>Switch map floors with M, controller D-pad Left, or the floor button. Teal dots mark nearby teammates. Red pulses mark doors Granny opened recently.</p></div></div>
       <div class="guide-tip"><svg aria-hidden="true"><use href="#settingsIcon"/></svg><div><strong>Touch and controller</strong><p>Use the joystick to move and drag the scene to look. On a controller, use both sticks, A to interact, B to crouch, right trigger to sprint, X for light, and Menu to pause. Granny uses L3 for a snare and R3 for a door bolt.</p></div></div>
       <footer class="dialog-footer"><span>Landscape gives you a wider view on phones.</span><button class="primary" data-back>Done</button></footer>
     </div>
@@ -334,6 +335,12 @@
       <div class="hud-journal"><kbd>Tab</kbd> Journal</div>
       <div class="touch-top"><button data-touch="journal">Journal</button><button data-touch="pause">Pause</button></div>
     </div>
+    <aside id="minimap" class="minimap" aria-label="Mansion map">
+      <div class="map-head"><span id="mapFloor">Ground floor</span><button type="button" id="mapSwitch" aria-label="View lower cellar" title="Change floor (M)">B1</button></div>
+      <canvas id="mansionMap" width="160" height="143" aria-label="Mansion floor plan with your position, nearby teammates and door states"></canvas>
+      <div class="map-key" aria-hidden="true"><span><i></i>Open</span><span><i></i>Shut</span><span><i></i>Locked</span></div>
+      <span class="mp-sr" id="mapNotice" role="status"></span>
+    </aside>
     <div id="mpHud" class="mp-hud" hidden>
       <div><span id="mpHudRole" class="eyebrow"></span><strong id="mpHudTime">–:–</strong><span id="mpHudTeam"></span></div>
       <p id="mpHudStatus"></p><p id="mpHudAbilities"></p><p id="mpHudVoice" hidden>Hold V to speak</p>

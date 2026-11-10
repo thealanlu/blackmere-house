@@ -1,8 +1,9 @@
-import {stalkerSettings,patrolPoints} from './rules.js';
+import {stalkerSettings,patrolPoints,PRE_LAYOUT_RUN_VERSION,RUN_VERSION} from './rules.js';
 const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
 
-export function createStalker(world,nav,brain,random,emit,openDoor,attack,version) {
+export function createStalker(world,nav,brain,random,emit,openDoor,attack,version=RUN_VERSION) {
   const actor=brain.actor;
+  const safeHiding=version>PRE_LAYOUT_RUN_VERSION;
   let level=stalkerSettings(brain.difficulty??'normal',version);
   function setState(next,point=null,delay=0) {
     brain.state=next;brain.goal=point;brain.timer=delay;brain.repath=0;brain.waypoints=[];
@@ -24,7 +25,7 @@ export function createStalker(world,nav,brain,random,emit,openDoor,attack,versio
   }
   function startSearch(point) {
     const [x,z]=point;
-    const spot=world.hiding.filter(o=>Math.hypot(o.x-x,o.z-z)<2.8)
+    const spot=safeHiding?null:world.hiding.filter(o=>Math.hypot(o.x-x,o.z-z)<2.8)
       .sort((a,b)=>Math.hypot(a.x-x,a.z-z)-Math.hypot(b.x-x,b.z-z))[0];
     brain.check=spot&&random()<level.inspect?spot.index:null;
     brain.searchPoints=[[x+.9,z-.9],[x-1.15,z+.67],[x+.5,z+1.8]].filter(([a,b])=>!nav.blocked(a,b,.24,true));
@@ -32,13 +33,14 @@ export function createStalker(world,nav,brain,random,emit,openDoor,attack,versio
     setState('search',approach??brain.searchPoints.shift()??point,5.5);
   }
   function canSee(player,distance,targetHeading) {
-    return brain.spawnTime<=0&&!player.hidden&&distance<level.vision*(player.crouch?.72:1)&&
+    return player&&brain.spawnTime<=0&&!player.hidden&&distance<level.vision*(player.crouch?.72:1)&&
       (distance<1.68||Math.abs(wrap(targetHeading-brain.heading))<(brain.state==='chase'?1.73:1.03))&&
       nav.clear(actor.x,actor.z,player.x,player.z);
   }
   function chooseTarget(players) {
     let best=null,score=Infinity;
     for(const player of players) {
+      if(safeHiding&&player.hidden)continue;
       const dx=player.x-actor.x,dz=player.z-actor.z,distance=Math.hypot(dx,dz);
       const visible=canSee(player,distance,Math.atan2(dx,dz));
       const value=distance+(visible?0:100);
@@ -57,7 +59,7 @@ export function createStalker(world,nav,brain,random,emit,openDoor,attack,versio
       startSearch([actor.x,actor.z]);
     }
     brain.spawnTime-=dt;brain.timer-=dt;brain.doorWait=Math.max(0,brain.doorWait-dt);
-    const dx=player.x-actor.x,dz=player.z-actor.z,distance=Math.hypot(dx,dz);
+    const dx=player?player.x-actor.x:0,dz=player?player.z-actor.z:0,distance=player?Math.hypot(dx,dz):Infinity;
     const targetHeading=Math.atan2(dx,dz);
     const visible=canSee(player,distance,targetHeading);
     if(visible) {
@@ -92,12 +94,12 @@ export function createStalker(world,nav,brain,random,emit,openDoor,attack,versio
       arrived=reachedGoal(.44);
     }
     if(brain.state==='search') {
-      if(brain.check!==null&&arrived) {
+      if(!safeHiding&&brain.check!==null&&arrived) {
         const spot=world.objects[brain.check];
         const x=spot.x+Math.sin(spot.yaw)*.15,z=spot.z+Math.cos(spot.yaw)*.15;
         const accessible=nav.clear(actor.x,actor.z,x,z);
         if(accessible&&spot.panels)world.setContainer(spot,true);
-        if(accessible&&player.hidden===spot) {
+        if(accessible&&player?.hidden===spot) {
           brain.heading=targetHeading;setState('attack');attack(actor);return;
         }
         brain.check=null;

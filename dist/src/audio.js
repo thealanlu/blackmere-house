@@ -1,14 +1,16 @@
 import {createScore} from './score.js';
 
 export function createAudio() {
-  let ctx,master,air,hiss,room,listener,score,dir=0,volume=.75,music=.55,beat=0,breath=0,active=false;
+  let ctx,master,air,hiss,room,listener,coverFilter,score,dir=0,volume=.75,music=.55,beat=0,breath=0,active=false;
   let origin={x:0,z:0};
   function init() {
     if(ctx){ctx.resume().catch(()=>{});return;}
     try {ctx=new AudioContext();} catch{return;}
     master=ctx.createGain();master.gain.value=volume*.64;master.connect(ctx.destination);
     score=createScore(ctx,master);score.setVolume(music);
-    listener=ctx.createGain();listener.gain.value=1;listener.connect(master);
+    listener=ctx.createGain();listener.gain.value=1;
+    coverFilter=ctx.createBiquadFilter();coverFilter.type='lowpass';coverFilter.frequency.value=20000;
+    listener.connect(coverFilter).connect(master);
     hiss=ctx.createBuffer(1,ctx.sampleRate*2,ctx.sampleRate);
     const data=hiss.getChannelData(0);
     for(let i=0;i<data.length;i++)data[i]=(Math.random()-.5)*2;
@@ -109,17 +111,19 @@ export function createAudio() {
     setVolume(v){volume=v;if(master)master.gain.setTargetAtTime(v*.64,ctx.currentTime,.06);},
     setMusic(v){music=v;score?.setVolume(v);},
     enable(v){active=v;if(air)air.gain.setTargetAtTime(v?.09:0,ctx.currentTime,.18);score?.enable(v);},
-    update(dt,tension,sprint,chasing) {
+    update(dt,tension,sprint,chasing,hidden=false) {
       if(!ctx||!active)return;
       score.update(chasing);
+      coverFilter.frequency.setTargetAtTime(hidden?940:20000,ctx.currentTime,.10);
       air.gain.setTargetAtTime(.071+tension*.085,ctx.currentTime,.22);
       beat-=dt;breath-=dt;
       if(tension>.15&&beat<=0) {
         beat=1.35-tension*.8;
         tone(.14,61,34,.12+tension*.18);tone(.13,55,30,.087+tension*.12,null,'sine',.13);
       }
-      if((sprint||tension>.55)&&breath<=0) {
-        breath=sprint?.59:1.21;noise(.40,670,.089,null,0,'bandpass');
+      if((hidden||sprint||tension>.55)&&breath<=0) {
+        breath=hidden?1.68:sprint?.59:1.21;
+        noise(hidden?.58:.40,hidden?530:670,hidden?.064:.089,null,0,'bandpass',hidden?master:null);
       }
     }
   };

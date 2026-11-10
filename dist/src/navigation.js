@@ -2,7 +2,7 @@ import {bounds} from './rules.js';
 
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const gap=.5,cols=56,rows=52;
-let grid;
+const grids=new WeakMap();
 
 export function navigation(world) {
   const normalDoors=world.doors.filter(d=>d.kind==='door'&&!d.secret);
@@ -40,11 +40,16 @@ export function navigation(world) {
     if(!blocked(body.x,body.z+dz,r))body.z+=dz;
   }
   const point=i=>[bounds.x0+(i%cols+.5)*gap,bounds.z0+(Math.floor(i/cols)+.5)*gap];
-  const staticGrid=grid??=Array.from({length:cols*rows},(_,i)=>{
-    const [x,z]=point(i);
-    return world.solid.some(o=>o.enabled===undefined&&Math.hypot(
-      x-clamp(x,o.x-o.dx/2,o.x+o.dx/2),z-clamp(z,o.z-o.dz/2,o.z+o.dz/2))<.29);
-  });
+  const geometry=world.geometry??world;
+  let staticGrid=grids.get(geometry);
+  if(!staticGrid) {
+    staticGrid=Array.from({length:cols*rows},(_,i)=>{
+      const [x,z]=point(i);
+      return world.solid.some(o=>o.enabled===undefined&&Math.hypot(
+        x-clamp(x,o.x-o.dx/2,o.x+o.dx/2),z-clamp(z,o.z-o.dz/2,o.z+o.dz/2))<.29);
+    });
+    grids.set(geometry,staticGrid);
+  }
   const special=world.doors.filter(d=>!doorBlocks.has(d.blocker)).map(d=>d.blocker);
   function occupied(i) {
     if(i<0||i>=cols*rows||staticGrid[i])return true;

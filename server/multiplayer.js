@@ -78,7 +78,10 @@ async function changeRoom(db,code,operation) {
     const now=Date.now();
     if(!row||row.touched<now-maxAge)fail(404,'This room is closed.');
     const room=JSON.parse(row.state);
-    if(room.version!==MATCH_VERSION)fail(409,'This room uses an older game version. Create a new room.');
+    if(room.version!==MATCH_VERSION) {
+      if(room.phase==='play'||room.version!==MATCH_VERSION-1)fail(409,'This match used the previous mansion layout. Start a new match.');
+      room.version=MATCH_VERSION;
+    }
     const result=await operation(room,now);
     if(result===false)return room;
     if(room.phase==='result'&&!room.recorded) {
@@ -168,11 +171,11 @@ async function dashboard(db,profile,now) {
       ORDER BY i.sent_at DESC LIMIT 20`,profile.id,now-graceMs*9,now-graceMs),
     multiplayerRecord(db,profile.id),
     one(db,`SELECT r.code FROM multiplayer_rooms r
-      WHERE r.phase='play' AND r.touched>? AND EXISTS(
+      WHERE r.phase='play' AND r.touched>? AND json_extract(r.state,'$.version')=? AND EXISTS(
         SELECT 1 FROM json_each(r.state,'$.members') AS p
         WHERE json_extract(p.value,'$.id')=? AND COALESCE(json_extract(p.value,'$.left'),0)=0
         AND json_extract(p.value,'$.seen')>?
-      ) ORDER BY r.touched DESC LIMIT 1`,now-graceMs,profile.id,now-graceMs)
+      ) ORDER BY r.touched DESC LIMIT 1`,now-graceMs,MATCH_VERSION,profile.id,now-graceMs)
   ]);
   const publicRooms=rows.map(r=>brief(JSON.parse(r.state),now)).filter(r=>r.seats>0&&r.seats<r.capacity);
   return {rooms:publicRooms,invites:inbox,stats,resume:current?.code??null};

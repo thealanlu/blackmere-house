@@ -1,7 +1,9 @@
-import blueprint from './level-data.js';
-import {clamp,floorY,SPAWN,TICK,levels} from './rules.js';
+import mansion from './level-data.js';
+import oldMansion from './level-legacy.js';
+import {clamp,floorY,SPAWN,TICK,levels,PRE_LAYOUT_RUN_VERSION,RUN_VERSION} from './rules.js';
 import {navigation} from './navigation.js';
 import {createStalker} from './stalker.js';
+import {HIDE_EXIT_TICKS,hideHeading,limitHideLook} from './hide-view.js';
 
 export const key={forward:1,back:2,left:4,right:8,sprint:16};
 export const action={use:1,drop:2,crouch:4,light:8,wake:16};
@@ -10,19 +12,24 @@ const emptyPlayer=()=>({x:SPAWN.x,z:SPAWN.z,crouch:false,hidden:null,yaw:SPAWN.y
 const interval=(x,t)=>x+(t-x)*(1-Math.exp(-12*TICK));
 const seatFields=['stamina','tired','step','flash','hiddenFrom','inventory','selected'];
 
-export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=null,physicsVersion) {
+export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=null,physicsVersion=RUN_VERSION) {
   if(!Object.hasOwn(levels,difficulty))throw new Error('Unknown difficulty');
+  const safeHiding=physicsVersion>PRE_LAYOUT_RUN_VERSION;
+  const blueprint=safeHiding?mansion:oldMansion;
   const state=saved??{
     tick:0,rng:seed>>>0,day:1,mode:'play',route:null,player:emptyPlayer(),brain:{actor:{x:0,z:0}},
     progress:emptyProgress(),inventory:[],selected:0,flying:[],stamina:1,tired:false,step:0,flash:true,hiddenFrom:null
   };
   let player=state.player;
   const solid=blueprint.solid.map(o=>({...o}));
-  const objects=blueprint.objects.map((o,index)=>({...o,index,blocker:o.blocker===undefined?null:solid[o.blocker]}));
+  const objects=blueprint.objects.map((o,index)=>({
+    ...o,index,blocker:o.blocker===undefined?null:solid[o.blocker],
+    ...(safeHiding&&(o.blocker!==undefined||o.panels||o.kind==='drawer')?{open:false}:{})
+  }));
   const doors=objects.filter(o=>o.blocker);
   const items=objects.filter(o=>o.kind==='item');
   const hiding=objects.filter(o=>o.kind==='hide');
-  const world={solid,objects,doors,hiding,items,setContainer};
+  const world={geometry:blueprint,solid,objects,doors,hiding,items,setContainer};
   const nav=navigation(world);
   const enemy=createStalker(world,nav,state.brain,random,emit,toggleDoor,caught,physicsVersion);
   const hidden=()=>player.hidden===null?null:objects[player.hidden];
@@ -42,19 +49,21 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
       it.x=o.x+Math.sin(o.drawerAngle)*.09;it.z=o.z+Math.cos(o.drawerAngle)*.09;
     }
   }
-  function toggleDoor(d,open,fromEnemy=false) {
+  function toggleDoor(d,open,fromEnemy=false,source) {
     if(d.open===open||(!open&&Math.hypot(player.x-d.x,player.z-d.z)<.55))return;
     if(!open&&party?.occupied(d))return;
     d.open=open;d.blocker.enabled=!open;
     if(open) {
-      const origin=fromEnemy?state.brain.actor:player;
+      const origin=source??(fromEnemy?state.brain.actor:player);
       const side=d.axis==='z'?origin.x-d.x:origin.z-d.z;
       d.swing=(d.axis==='z'?(side<0?-1:1):(side<0?1:-1))*1.71;
+      if(fromEnemy&&safeHiding)notify('grannyDoor',{door:d.index});
     }
     emit('door',d,fromEnemy?0:5.4);
   }
   function startNight() {
     Object.assign(player,emptyPlayer());
+    if(safeHiding){delete player.hideExit;delete player.hideLeave;}
     Object.assign(state,{mode:'play',stamina:1,tired:false,step:0,flash:true,hiddenFrom:null});
     for(const f of state.flying) {
       const it=objects[f.index];
@@ -128,11 +137,11 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
   }
 
   function prompt(o=target()) {
-    if(hidden())return 'Leave hiding place';
+    if(hidden())return player.hideExit?'Leaving cover…':'Leave hiding place';
     if(!o)return '';
     if(o.kind==='item')return 'Take '+o.name;
     if(o.kind==='door')return o.secret?(o.open?'Close bookcase':'Pull bookcase'):(o.open?'Close door':'Open door');
-    if(o.kind==='hide')return o.type==='bed'?'Slide under the bed':'Hide in '+o.name.toLowerCase();
+    if(o.kind==='hide')return o.type==='bed'?'Slide under the bed':o.type==='furniture'?'Hide behind the sofa':'Hide in '+o.name.toLowerCase();
     if(o.kind==='drawer'||o.kind==='cabinet')return (o.open?'Close ':'Search ')+o.name.toLowerCase();
     if(o.kind==='note')return 'Read '+o.name.toLowerCase();
     const p=state.progress;
@@ -165,9 +174,34 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
     return best;
   }
 
+  function exitPoint(spot) {
+    const at=state.hiddenFrom;
+    if(at&&!nav.blocked(at.x,at.z))return {x:at.x,z:at.z};
+    const [x,z]=spot.exit;
+    return nav.blocked(x,z)?null:{x,z};
+  }
+  function finishHideExit(spot) {
+    const at=exitPoint(spot);
+    delete player.hideExit;delete player.hideLeave;
+    if(!at) {
+      if(spot.panels)setContainer(spot,false);
+      return issue('The opening is blocked.');
+    }
+    Object.assign(player,at,{hidden:null,crouch:spot.type!=='wardrobe'});
+    player.eye=floorY(at.x,at.z)+(player.crouch?1.03:1.66);
+    state.hiddenFrom=null;
+    emit('door',player,3.1);
+  }
   function interact() {
     if(hidden()) {
       const o=hidden();
+      if(safeHiding) {
+        const at=exitPoint(o);
+        if(!at)return issue('The opening is blocked.');
+        player.hideExit=HIDE_EXIT_TICKS;player.hideLeave=at;
+        if(o.panels)setContainer(o,true);
+        return;
+      }
       Object.assign(player,state.hiddenFrom,{hidden:null,crouch:o.type==='bed'});
       state.hiddenFrom=null;
       if(o.panels)setContainer(o,true);
@@ -185,7 +219,9 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
       state.hiddenFrom={x:player.x,z:player.z,yaw:player.yaw,pitch:player.pitch};
       Object.assign(player,{hidden:o.index,x:o.anchor[0],z:o.anchor[1],yaw:Math.PI+o.yaw,pitch:o.type==='bed'?.016:-.06});
       if(o.panels)setContainer(o,false);
-      emit('door',o,2.35);
+      if(safeHiding) {
+        player.yaw=hideHeading(o);player.eye=o.view[1];
+      } else emit('door',o,2.35);
     }
     if(o.kind==='drawer'||o.kind==='cabinet'){setContainer(o,!o.open);emit('door',o,4.2);}
     if(o.kind==='item') {
@@ -222,9 +258,16 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
   function control([keys,yaw,pitch,actions,slot]) {
     player.yaw=Math.atan2(Math.sin(player.yaw+yaw/1000),Math.cos(player.yaw+yaw/1000));
     player.pitch=clamp(player.pitch+pitch/1000,-1.43,1.43);
+    if(safeHiding&&hidden()) {
+      limitHideLook(player,hidden());
+      if(player.hideExit) {
+        if(--player.hideExit===0)finishHideExit(hidden());
+        return {travelled:0,sprint:false};
+      }
+    }
     if(slot>=0)state.selected=slot;
     if(actions&action.crouch&&!hidden())player.crouch=!player.crouch;
-    if(actions&action.light){state.flash=!state.flash;emit('item',player,1.8);}
+    if(actions&action.light){state.flash=!state.flash;if(!safeHiding||!hidden())emit('item',player,1.8);}
     if(actions&action.use)interact();
     if(state.mode!=='play')return;
     if(actions&action.drop)drop();
@@ -236,7 +279,8 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
         emit('step',player,sprint?10.5:player.crouch?1.55:4.8);
       }
     }
-    player.eye=interval(player.eye,floorY(player.x,player.z)+(hidden()?(hidden().type==='bed'?.33:1.44):player.crouch?1.03:1.66));
+    player.eye=interval(player.eye,safeHiding&&hidden()?hidden().view[1]:
+      floorY(player.x,player.z)+(hidden()?(hidden().type==='bed'?.33:1.44):player.crouch?1.03:1.66));
     return {travelled,sprint};
   }
 
@@ -250,7 +294,7 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
     const movement=control(input);
     if(state.mode!=='play')return;
     updateDrops();
-    enemy.update(TICK,{...player,hidden:hidden()});
+    enemy.update(TICK,safeHiding&&hidden()?null:{...player,hidden:hidden()});
     return movement;
   }
 
@@ -269,8 +313,8 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
     updateDrops();
     if(!candidates)return;
     const target=enemy.chooseTarget(candidates);
-    if(!target)return;
-    party.target(target);
+    if(!target&&!safeHiding)return;
+    if(target)party.target(target);
     enemy.update(TICK,target);
     // Co-op captures immobilize one survivor while the others stay in play.
     if(state.brain.state==='attack'&&state.brain.recovering===undefined)enemy.recover();

@@ -32,6 +32,10 @@ On a touch device, use the virtual joystick to move, drag the scene to look, and
 
 Check the journal for both escape routes. Drawers and cupboards can hold tools, and item locations vary by run. Items and escape progress carry over after capture. Difficulty is chosen at the start of a run. Use **Save & Exit** to keep one unranked solo checkpoint. The game also keeps local checkpoints during play. When signed in and online, **Save & Exit** uploads the checkpoint to your account so another device can open it under **Single Player → Continue Solo Save**. Verified runs stay tied to their original session.
 
+The top-left minimap shows the real floor plan, door states, and nearby teammates. Use **M**, D-pad Left, or its floor button to switch between the ground floor and lower cellar. A red pulse lasts five seconds at each door Granny opens. New passage doors connect the bedroom to the music room, the music room to the study, and the kitchen to the cellar landing.
+
+Use **E** or the contextual action to get into or out of cover. You can look through the wardrobe gap, under the bed, around the drawing-room sofa, or out of the coal recess. Granny can search nearby while you watch. The game keeps you concealed until you have fully exited.
+
 | Controller | Action |
 | --- | --- |
 | Left stick / right stick | Move / look |
@@ -102,6 +106,7 @@ Never place a service-role key in the game code. The integration uses the publis
 - `dist/src/simulation.js`, `stalker.js`, and `navigation.js` implement the deterministic game rules used by the browser and server.
 - `dist/src/match.js` and `server/multiplayer.js` run authoritative multiplayer matches. Players send inputs and receive snapshots over HTTPS. The server commits each room update against its last stored revision.
 - `scripts/level.mjs` derives the simulation level from the rendered mansion, keeping collision and interaction positions aligned.
+- `scripts/validate-level.mjs` checks the room graph and collision geometry for usable approaches, alternate routes, and hiding exits.
 - `server/` contains authentication, profile, social and ranking endpoints.
 - `drizzle/` holds the production schema. `scripts/sqlite.mjs` provides a local SQLite adapter for development and tests.
 

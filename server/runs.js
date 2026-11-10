@@ -1,6 +1,6 @@
 import {body,fail,json,one,write,statement,limit} from './http.js';
 import {createSimulation,action} from '../dist/src/simulation.js';
-import {levels,MAX_TICKS,PRE_SLOWDOWN_RUN_VERSION,RUN_VERSION,runScore} from '../dist/src/rules.js';
+import {levels,MAX_TICKS,PRE_LAYOUT_RUN_VERSION,PRE_SLOWDOWN_RUN_VERSION,RUN_VERSION,runScore} from '../dist/src/rules.js';
 
 const maxBatch=240;
 const validInt=(v,min,max)=>Number.isInteger(v)&&v>=min&&v<=max;
@@ -51,7 +51,7 @@ export async function runs(request,env,url,profile) {
   if(!validInt(d.seq,0,MAX_TICKS+5))fail(400,'Invalid replay sequence.');
   const row=await one(db,'SELECT * FROM runs WHERE id=? AND player=?',id,profile.id);
   if(!row)fail(404,'Run not found.');
-  if(row.expires_at<now||row.status==='abandoned'||![PRE_SLOWDOWN_RUN_VERSION,RUN_VERSION].includes(row.version))fail(409,'This ranked run expired.');
+  if(row.expires_at<now||row.status==='abandoned'||![PRE_SLOWDOWN_RUN_VERSION,PRE_LAYOUT_RUN_VERSION,RUN_VERSION].includes(row.version))fail(409,'This ranked run expired.');
   const hash=await digest(d.batch);
   if(d.seq===row.seq-1&&row.last_hash===hash) {
     return json({seq:row.seq,result:row.status==='finished'?await one(db,'SELECT route,deaths,ticks,score FROM results WHERE run=?',id):null});
