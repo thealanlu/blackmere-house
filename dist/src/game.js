@@ -1,7 +1,8 @@
 import * as T from '../vendor/three.module.js';
 import { createWorld } from './world.js';
 import { createCaretaker } from './caretaker.js';
-import { floorY, areaAt, TICK, RUN_VERSION } from './rules.js';
+import { floorY, areaAt, TICK } from './rules.js';
+import { CHECKPOINT_VERSION } from './checkpoint.js';
 import { createSimulation, moveSurvivor, key, action } from './simulation.js';
 import { createAudio } from './audio.js';
 import { rng,setMaterialQuality } from './materials.js';
@@ -119,7 +120,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
   }
   function checkpoint() {
     return solo&&sim&&['play','interlude'].includes(sim.state.mode)?
-      {version:RUN_VERSION,difficulty,state:sim.snapshot()}:null;
+      {version:CHECKPOINT_VERSION,difficulty,state:sim.snapshot()}:null;
   }
   function keepCheckpoint() {
     const value=checkpoint();
@@ -155,7 +156,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
       const next={...body},energy={stamina:s.stamina,tired:s.tired};
       if(packet.timers.slow<=packet.clock&&(s.role!=='granny'||packet.timers.warm<=packet.clock)) {
         for(let i=0;i<Math.min(3,Math.round(roundtrip/65));i++) {
-          if(s.role==='granny')moveGranny(next,sim.nav,netKeys);
+          if(s.role==='granny')moveGranny(next,sim.nav,netKeys,packet.grannySpeed);
           else moveSurvivor(next,energy,sim.nav,netKeys);
         }
       }
@@ -493,7 +494,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     if(!canMove)return;
     const now=netClock+Math.min(550,performance.now()-netFrame);
     if(granny) {
-      if(now>=timers.warm&&now>=timers.attack-860)moveGranny(p,sim.nav,netKeys);
+      if(now>=timers.warm&&now>=timers.attack-860)moveGranny(p,sim.nav,netKeys,netState.grannySpeed);
     } else if(now>=timers.slow)moveSurvivor(p,sim.state,sim.nav,netKeys);
     if(p.hidden===null)p.eye=floorY(p.x,p.z)+(granny?1.86:p.crouch?1.03:1.66);
   }

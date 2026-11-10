@@ -3,11 +3,10 @@ import assert from 'node:assert/strict';
 import worker from '../dist/server/index.js';
 import {sqlite} from '../scripts/sqlite.mjs';
 import {createSimulation,key,action} from '../dist/src/simulation.js';
-import {RUN_VERSION} from '../dist/src/rules.js';
 import {movementBits,aimAxis} from '../dist/src/input.js';
 import {adaptiveResolution,pixelRatio,presets,recommendedPreset} from '../dist/src/performance.js';
 import {normalizePreferences} from '../dist/src/preferences.js';
-import {validCheckpoint} from '../dist/src/checkpoint.js';
+import {CHECKPOINT_VERSION,validCheckpoint} from '../dist/src/checkpoint.js';
 
 test('touch sectors and controller dead zones produce the existing movement protocol',()=>{
   assert.equal(movementBits(0,-.1),0);
@@ -54,7 +53,7 @@ test('cloud settings and solo checkpoints are account-scoped and use save revisi
     const sim=createSimulation(36,'story');
     for(let i=0;i<45;i++)sim.tick([key.forward,0,0,0,-1]);
     sim.tick([0,0,0,action.crouch,-1]);
-    const checkpoint=JSON.parse(JSON.stringify({version:RUN_VERSION,difficulty:'story',state:sim.snapshot()}));
+    const checkpoint=JSON.parse(JSON.stringify({version:CHECKPOINT_VERSION,difficulty:'story',state:sim.snapshot()}));
     assert.ok(validCheckpoint(checkpoint));
     assert.equal((await q('a','checkpoint',{revision:0,checkpoint})).revision,1);
     const saved=await q('a','checkpoint');

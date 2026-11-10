@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import worker from '../dist/server/index.js';
 import {sqlite} from '../scripts/sqlite.mjs';
 import {play,pack} from './driver.mjs';
-import {runScore,RUN_VERSION} from '../dist/src/rules.js';
+import {runScore,PRE_SLOWDOWN_RUN_VERSION,RUN_VERSION} from '../dist/src/rules.js';
+import {createSimulation} from '../dist/src/simulation.js';
 
 const origin='https://blackmere.test';
 function harness(options={}) {
@@ -89,6 +90,27 @@ test('server rejects impossible submissions and records only the replay-verified
     assert.equal((await q('leaderboard?metric=rate')).data.results.length,0);
     assert.equal((await q('me',{subject:'runner'})).data.stats.games,1);
   }finally{DB.close();}
+});
+
+test('an in-progress ranked replay retains the Granny speed it started with',async(t)=>{
+  let now=Date.now();
+  t.mock.method(Date,'now',()=>now);
+  const {request,DB}=harness();
+  const post=(path,data)=>request(path,{subject:'runner',method:'POST',data});
+  try {
+    await post('profile',{username:'Runner'});
+    const run=(await post('runs',{difficulty:'normal',version:RUN_VERSION})).data;
+    await DB.prepare('UPDATE runs SET version=? WHERE id=?').bind(PRE_SLOWDOWN_RUN_VERSION,run.id).run();
+    const input=[0,0,0,0,-1];
+    const old=createSimulation(run.seed,'normal',null,undefined,null,PRE_SLOWDOWN_RUN_VERSION);
+    const current=createSimulation(run.seed,'normal');
+    for(let i=0;i<120;i++){old.tick(input);current.tick(input);}
+    assert.ok(old.state.brain.actor.x>current.state.brain.actor.x+.5);
+    now+=4500;
+    assert.equal((await post('runs/'+run.id+'/step',{seq:0,batch:[[120,...input]]})).status,200);
+    const {snapshot}=await DB.prepare('SELECT snapshot FROM runs WHERE id=?').bind(run.id).first();
+    assert.deepEqual(JSON.parse(snapshot).brain.actor,old.state.brain.actor);
+  } finally {DB.close();}
 });
 
 test('gamer-tag signup signs in immediately and login follows a renamed tag',async(t)=>{

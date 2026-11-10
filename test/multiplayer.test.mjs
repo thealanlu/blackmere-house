@@ -67,6 +67,19 @@ test('co-op shares both puzzle routes and preserves individual escapes',()=>{
   }
 });
 
+test('Granny uses the same speed in the room simulation and in player snapshots',()=>{
+  for(const legacy of [false,true]) {
+    const r=create('pvp',2),[hunter]=r.members;
+    if(legacy)delete r.physicsVersion;
+    r.clock=r.started+7500;
+    at(hunter,0,-3,0);
+    use(r,hunter,key.forward,0);
+    const expected=legacy?3.38:2.82;
+    assert.equal(viewMatch(r,hunter,0).grannySpeed,expected);
+    assert.ok(Math.abs((-3-hunter.body.z)*30-expected)<.001);
+  }
+});
+
 test('Granny cannot attack through a wall, and a teammate can rescue a capture',()=>{
   const r=create('pvp',5),[hunter,a,b]=r.members;
   assert.equal(r.members.filter(p=>p.role==='granny').length,1);

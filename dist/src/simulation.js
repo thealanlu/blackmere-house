@@ -10,7 +10,7 @@ const emptyPlayer=()=>({x:SPAWN.x,z:SPAWN.z,crouch:false,hidden:null,yaw:SPAWN.y
 const interval=(x,t)=>x+(t-x)*(1-Math.exp(-12*TICK));
 const seatFields=['stamina','tired','step','flash','hiddenFrom','inventory','selected'];
 
-export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=null) {
+export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=null,physicsVersion) {
   if(!Object.hasOwn(levels,difficulty))throw new Error('Unknown difficulty');
   const state=saved??{
     tick:0,rng:seed>>>0,day:1,mode:'play',route:null,player:emptyPlayer(),brain:{actor:{x:0,z:0}},
@@ -24,7 +24,7 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
   const hiding=objects.filter(o=>o.kind==='hide');
   const world={solid,objects,doors,hiding,items,setContainer};
   const nav=navigation(world);
-  const enemy=createStalker(world,nav,state.brain,random,emit,toggleDoor,caught);
+  const enemy=createStalker(world,nav,state.brain,random,emit,toggleDoor,caught,physicsVersion);
   const hidden=()=>player.hidden===null?null:objects[player.hidden];
   const issue=text=>notify('toast',text);
 

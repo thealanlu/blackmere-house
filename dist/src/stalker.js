@@ -1,14 +1,14 @@
-import {levels,patrolPoints} from './rules.js';
+import {stalkerSettings,patrolPoints} from './rules.js';
 const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
 
-export function createStalker(world,nav,brain,random,emit,openDoor,attack) {
+export function createStalker(world,nav,brain,random,emit,openDoor,attack,version) {
   const actor=brain.actor;
-  let level=levels[brain.difficulty??'normal'];
+  let level=stalkerSettings(brain.difficulty??'normal',version);
   function setState(next,point=null,delay=0) {
     brain.state=next;brain.goal=point;brain.timer=delay;brain.repath=0;brain.waypoints=[];
   }
   function reset(which,day) {
-    brain.difficulty=which;level=levels[which];brain.gaze=0;actor.x=-7.7;actor.z=-9;brain.spawnTime=level.grace;
+    brain.difficulty=which;level=stalkerSettings(which,version);brain.gaze=0;actor.x=-7.7;actor.z=-9;brain.spawnTime=level.grace;
     brain.heading=Math.PI/2;brain.pace=0;brain.stride=.5;brain.doorWait=0;
     brain.lastNoise=null;brain.remembered=null;brain.seen=0;brain.check=null;brain.searchPoints=[];
     brain.patrol=day%2?[...patrolPoints]:[...patrolPoints].reverse();

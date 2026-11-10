@@ -1,5 +1,7 @@
 import level from './level-data.js';
-import {bounds,levels,RUN_VERSION} from './rules.js';
+import {bounds,levels} from './rules.js';
+
+export const CHECKPOINT_VERSION=2;
 
 const obj=o=>o&&typeof o==='object'&&!Array.isArray(o);
 const int=(v,min,max)=>Number.isInteger(v)&&v>=min&&v<=max;
@@ -13,7 +15,7 @@ const hide=i=>i===null||int(i,0,level.objects.length-1)&&level.objects[i].kind==
 const look=p=>place(p)&&finite(p.yaw,-12.6,12.6)&&finite(p.pitch,-1.45,1.45);
 
 export function validCheckpoint(value) {
-  if(!obj(value)||value.version!==RUN_VERSION||!Object.hasOwn(levels,value.difficulty)||!obj(value.state))return false;
+  if(!obj(value)||value.version!==CHECKPOINT_VERSION||!Object.hasOwn(levels,value.difficulty)||!obj(value.state))return false;
   const s=value.state,p=s.player,b=s.brain;
   if(!['play','interlude'].includes(s.mode)||!int(s.day,1,5)||!int(s.tick,0,900_000)||!int(s.rng,0,4294967295)||
     !look(p)||!flags(p,['crouch'])||!hide(p.hidden)||!finite(p.eye,-1.2,2.4)||

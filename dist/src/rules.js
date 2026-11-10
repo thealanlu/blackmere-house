@@ -1,13 +1,21 @@
 export const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 export function smoothstep(x,a,b){const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);}
 export const TICK=1/30;
-export const RUN_VERSION=2;
+export const PRE_SLOWDOWN_RUN_VERSION=2;
+export const RUN_VERSION=3;
 export const MAX_TICKS=30*60*25;
 export const levels={
-  story:{label:'Story',caption:'Longer grace period and gentler pursuit.',walk:1.10,chase:2.22,vision:7.1,hearing:.75,grace:17,inspect:.32,points:1000},
-  normal:{label:'Standard',caption:'She hears a careless step and remembers where you ran.',walk:1.42,chase:3.18,vision:10,hearing:1,grace:11,inspect:.68,points:1600},
-  dread:{label:'Nightmare',caption:'Sharper hearing, a faster chase and frequent checks.',walk:1.75,chase:4.25,vision:12.8,hearing:1.3,grace:6,inspect:.92,points:2400}
+  story:{label:'Story',caption:'Longer grace period and gentler pursuit.',walk:.90,chase:1.82,vision:7.1,hearing:.75,grace:17,inspect:.32,points:1000},
+  normal:{label:'Standard',caption:'She hears a careless step and remembers where you ran.',walk:1.16,chase:2.60,vision:10,hearing:1,grace:11,inspect:.68,points:1600},
+  dread:{label:'Nightmare',caption:'Sharper hearing, a faster chase and frequent checks.',walk:1.44,chase:3.48,vision:12.8,hearing:1.3,grace:6,inspect:.92,points:2400}
 };
+const legacyStalkerSpeeds={
+  story:{walk:1.10,chase:2.22},normal:{walk:1.42,chase:3.18},dread:{walk:1.75,chase:4.25}
+};
+export function stalkerSettings(difficulty,version) {
+  const level=levels[difficulty];
+  return version===PRE_SLOWDOWN_RUN_VERSION?{...level,...legacyStalkerSpeeds[difficulty]}:level;
+}
 export function runScore(difficulty,ticks,deaths,route){
   return route ? levels[difficulty].points + (5-deaths)*100 + Math.max(0,600-Math.floor(ticks/30))*2 : 0;
 }

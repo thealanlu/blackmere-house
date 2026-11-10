@@ -1,5 +1,5 @@
 import {createSimulation,moveSurvivor,key,action} from './simulation.js';
-import {clamp,floorY,levels,SPAWN,TICK} from './rules.js';
+import {clamp,floorY,levels,PRE_SLOWDOWN_RUN_VERSION,RUN_VERSION,SPAWN,TICK} from './rules.js';
 
 export const MATCH_VERSION=1;
 export const skill={trap:32,bolt:64};
@@ -7,6 +7,8 @@ export const durations=[6,8,10];
 export const preferences=['survivor','granny','random'];
 export const graceMs=45_000;
 const tickMs=TICK*1000;
+const currentGrannySpeed=2.82;
+const grannySpeed=room=>room.physicsVersion===undefined||room.physicsVersion===PRE_SLOWDOWN_RUN_VERSION?3.38:currentGrannySpeed;
 const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
 const gap=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 const round=(n)=>Math.round(n*1000)/1000;
@@ -29,6 +31,7 @@ export function startMatch(room,now,seed=crypto.getRandomValues(new Uint32Array(
   const pool=volunteers.length?volunteers:random.length?random:members;
   const hunter=room.mode==='pvp'?pool[seed%pool.length]:null;
   room.members=members;
+  room.physicsVersion=RUN_VERSION;
   room.phase='play';room.game=crypto.randomUUID();room.winner=null;room.reason=null;room.started=now;
   room.forfeit=false;room.ranked=false;room.recorded=false;room.chat=[];
   room.clock=now;room.deadline=now+room.minutes*60_000;
@@ -118,12 +121,12 @@ function sound(room,kind,at,radius,source) {
   if(at)notice(room,kind,{x:round(at.x),z:round(at.z),radius,source,running:at.running,foot:at.foot});
 }
 
-export function moveGranny(body,nav,keys) {
+export function moveGranny(body,nav,keys,pace=currentGrannySpeed) {
   const x=Number(Boolean(keys&key.right))-Number(Boolean(keys&key.left));
   const z=Number(Boolean(keys&key.forward))-Number(Boolean(keys&key.back));
   const length=Math.hypot(x,z);
   if(!length)return 0;
-  const {x:oldX,z:oldZ,yaw}=body,speed=3.38*TICK/length;
+  const {x:oldX,z:oldZ,yaw}=body,speed=pace*TICK/length;
   nav.move(body,(x*Math.cos(yaw)-z*Math.sin(yaw))*speed,(-x*Math.sin(yaw)-z*Math.cos(yaw))*speed,.24);
   return Math.hypot(body.x-oldX,body.z-oldZ);
 }
@@ -132,7 +135,7 @@ function hunt(room,sim,p,command) {
   const b=p.body,at=room.clock,doors=sim.world.doors;
   p.body.yaw=p.yaw;p.body.pitch=p.pitch;
   const warm=at-room.started>=6500;
-  const travel=warm&&at>=p.attackAt-860?moveGranny(b,sim.nav,command.keys):0;
+  const travel=warm&&at>=p.attackAt-860?moveGranny(b,sim.nav,command.keys,grannySpeed(room)):0;
   b.eye=floorY(b.x,b.z)+1.86;p.pace=travel/(TICK*3.4);
   const stride=p.stride;
   p.stride+=travel/.94;
@@ -199,7 +202,7 @@ export function advanceMatch(room,now) {
       sound(room,data.kind,data.at,range[data.kind]??5,data.kind==='enemyStep'?null:acting?.id);
     } else if(kind==='toast'&&acting)notice(room,'toast',{target:acting.id,text:data});
     else if(kind==='note'&&acting)notice(room,'toast',{target:acting.id,text:data.name});
-  },party);
+  },party,room.physicsVersion??PRE_SLOWDOWN_RUN_VERSION);
 
   function expire() {
     for(const p of room.members) {
@@ -284,7 +287,7 @@ export function viewMatch(room,seat,after,worldVersion=0) {
       const strength=clamp(1-gap(seat.body,p.body)/(open?12:7.5),0,1)*(open?1:.47);
       return {id:p.id,version:p.voice,gain:Math.round(strength*10)/10};
     }):[];
-  return {game:room.game,version:MATCH_VERSION,clock:room.clock,deadline:room.deadline,lastEvent:room.eventSeq,events,
+  return {game:room.game,version:MATCH_VERSION,clock:room.clock,deadline:room.deadline,lastEvent:room.eventSeq,events,grannySpeed:grannySpeed(room),
     phase:room.phase,winner:room.winner,reason:room.reason,mode:room.mode,difficulty:room.difficulty,roster,avatars,ai,world,worldVersion:room.worldVersion,
     me:{...avatar({...seat,viewTime:room.clock}),body:{...seat.body},flash:seat.flash,stamina:seat.stamina,tired:seat.tired,
       inventory:seat.inventory,selected:seat.selected,seq:seat.seq,status:seat.status},watch:watch?{name:watch.name,body:{...body},flash:watch.flash}:null,
