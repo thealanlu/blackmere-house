@@ -1,56 +1,92 @@
-import { createGame } from './game.js';
 import { itemInfo, levels } from './rules.js';
 import { rankedAttempt } from './online.js';
 import { bindSocial, timeLabel } from './social.js';
 import { bindMultiplayer } from './multiplayer.js';
+import { createAudio } from './audio.js';
+import { normalizePreferences } from './preferences.js';
+import { bindDevices } from './device-ui.js';
+import { deviceData } from './device-data.js';
+import { requestGyro } from './input.js';
+import { configurePwa } from './pwa.js';
 
 const $=id=>document.getElementById(id);
-const defaults={difficulty:'normal',graphics:'medium',volume:.72,music:.55,sensitivity:1,motion:!matchMedia('(prefers-reduced-motion: reduce)').matches};
 let saved={};
 try {saved=JSON.parse(localStorage.getItem('blackmere.settings')||'{}')||{};} catch {}
-const settings={
-  difficulty:Object.hasOwn(levels,saved.difficulty)?saved.difficulty:defaults.difficulty,
-  graphics:['low','medium','high'].includes(saved.graphics)?saved.graphics:defaults.graphics,
-  volume:Number.isFinite(saved.volume)?Math.max(0,Math.min(1,saved.volume)):defaults.volume,
-  music:Number.isFinite(saved.music)?Math.max(0,Math.min(1,saved.music)):defaults.music,
-  footstepCues:typeof saved.footstepCues==='boolean'?saved.footstepCues:true,
-  sensitivity:Number.isFinite(saved.sensitivity)?Math.max(.25,Math.min(2.5,saved.sensitivity)):defaults.sensitivity,
-  motion:typeof saved.motion==='boolean'?saved.motion:defaults.motion
-};
+const settings=normalizePreferences(saved,matchMedia('(prefers-reduced-motion: reduce)').matches);
 const screens=[...document.querySelectorAll('.screen')];
 const menuDialogs=new Map([...document.querySelectorAll('.menu-dialog')].map(dialog=>[dialog.id,dialog]));
-let view='menu', returnView='menu',dialogOrigin,game,toastTimer,revealTimer,footstepTimer,footstepPulse,threatLabel='',lastPrompt='';
+let view='menu',returnView='menu',dialogOrigin,game,gameModule,initializing,toastTimer,revealTimer,footstepTimer,footstepPulse;
+let threatLabel='',lastPrompt='',gyroAllowed=false,accountId=null,runOwner=null,continueSave,continueRequest=0,saveInFlight=false;
 const guestOnly=document.documentElement.dataset.edition==='guest';
+try{if(!guestOnly)accountId=localStorage.getItem('blackmere.deviceAccount');}catch{}
+const sound=createAudio();
+const devices=bindDevices(settings,{view:()=>view,back,controlHint:kind=>{
+  $('prompt').firstElementChild.textContent=kind==='pad'?'A':'E';
+  if(kind!=='mouse')$('mouseHint').hidden=true;
+}});
+const sync=deviceData(patch=>{Object.assign(settings,patch);persistSettings();updateOptions();game?.configure();},
+  status=>{$('preferenceStatus').textContent=status;});
 const social=guestOnly?null:bindSocial(navigate,name=>view===name);
-const multiplayer=guestOnly?null:bindMultiplayer({navigate,isOpen:name=>view===name,social,game:createGameOnce});
+const multiplayer=guestOnly?null:bindMultiplayer({navigate,isOpen:name=>view===name,social,game:createGameOnce,currentGame:()=>game});
 social?.setMultiplayer(multiplayer);
+social?.setAccountListener((id,reachable)=>{
+  if(!reachable)return;
+  const changed=id!==accountId;
+  accountId=id;sync.account(id);
+  try{if(id)localStorage.setItem('blackmere.deviceAccount',id);else localStorage.removeItem('blackmere.deviceAccount');}catch{}
+  if(changed&&view==='dispatch')loadContinue();
+});
+function warmGame() {
+  gameModule??=import('./game.js').catch(error=>{gameModule=null;throw error;});
+  return gameModule;
+}
 function fatal(error) {
   console.error(error);
-  const box=$('fatal');
-  box.textContent='3D rendering could not start. Open the game in a desktop browser with WebGL 2 enabled, then reload.';
-  box.hidden=false;
+  $('graphicsErrorText').textContent=error.message==='WebGL context lost'?
+    'The browser interrupted the 3D view. Wait a moment, then retry with Low graphics.':
+    'This game needs WebGL 2. Try Low graphics or a browser with hardware acceleration enabled. The menus are still available.';
+  $('fatal').hidden=false;$('graphicsRetry').focus({preventScroll:true});
 }
 function createGameOnce() {
-  if(game)return game;
-  try {game=createGame($('game'),ui,settings);return game;}
-  catch(error){fatal(error);return null;}
+  sound.init();
+  if(settings.gyro&&!gyroAllowed)enableGyro();
+  if(game)return Promise.resolve(game);
+  initializing??=warmGame().then(({createGame})=>{
+    game=createGame($('game'),ui,settings,sound);
+    game.gyro.allow(gyroAllowed);
+    return game;
+  }).catch(error=>{fatal(error);return null;}).finally(()=>{initializing=null;});
+  return initializing;
 }
+async function enableGyro() {
+  gyroAllowed=await requestGyro();
+  if(!settings.gyro)return;
+  game?.gyro.allow(gyroAllowed);
+  $('motionStatus').textContent=gyroAllowed?'Gyroscope aim is enabled when using touch.':'Motion access is unavailable. You can still drag to look.';
+}
+function persistSettings(){try{localStorage.setItem('blackmere.settings',JSON.stringify(settings));}catch{}}
 function updateOptions() {
-  for(const key of ['difficulty','graphics','sensitivity','volume','music'])$(key).value=settings[key];
-  $('motion').checked=settings.motion;
-  $('footstepCues').checked=settings.footstepCues;
+  for(const [key,value] of Object.entries(settings)) {
+    const input=$(key);
+    if(input.type==='checkbox')input.checked=value;
+    else input.value=value;
+    const output=$(key+'Value');
+    if(output)output.textContent=key==='joystickInset'||key==='joystickHeight'?value+' px':Math.round(value*100)+'%';
+  }
   $('playDifficulty').value=settings.difficulty;
   $('levelDescription').textContent=levels[settings.difficulty].caption;
-  $('volumeValue').textContent=Math.round(settings.volume*100)+'%';
-  $('musicValue').textContent=Math.round(settings.music*100)+'%';
-  $('sensitivityValue').textContent=Math.round(settings.sensitivity*100)+'%';
+  devices.apply();
 }
 updateOptions();
 for(const key of Object.keys(settings)) {
   $(key).addEventListener('input',e=>{
     const input=e.target;
     settings[key]=input.type==='checkbox'?input.checked:input.type==='range'?Number(input.value):input.value;
-    try{localStorage.setItem('blackmere.settings',JSON.stringify(settings));}catch{}
+    if(key==='gyro') {
+      if(settings.gyro)enableGyro();
+      else {gyroAllowed=false;game?.gyro.disable();$('motionStatus').textContent='';}
+    }
+    persistSettings();sync.change(key,settings[key]);
     updateOptions();game?.configure();
   });
 }
@@ -63,6 +99,9 @@ function switchTo(name) {
   }
   const display=dialog?returnView:name==='play'?'playHud':['victory','interlude','defeat'].includes(name)?'result':name;
   for(const screen of screens)screen.hidden=screen.id!==display;
+  devices.rotation();
+  $('saveSolo').hidden=name!=='pause'||!game?.checkpoint();
+  if(name==='pause')$('saveStatus').textContent='';
   if(name!=='caught')$('gameShade').classList.remove('caught');
   if(dialog) {
     if(!dialog.open){
@@ -81,6 +120,14 @@ $('game').tabIndex=-1;
 $('game').addEventListener('webglcontextlost',event=>{
   event.preventDefault();game?.pause();fatal(new Error('WebGL context lost'));
 });
+$('game').addEventListener('webglcontextrestored',()=>{$('fatal').hidden=true;game?.configure();});
+$('graphicsDismiss').onclick=()=>{$('fatal').hidden=true;};
+$('graphicsRetry').onclick=()=>{
+  settings.graphics='low';settings.frameRate='30';persistSettings();updateOptions();$('fatal').hidden=true;
+  if(game){game.configure();game.resume();}
+  else if(view==='dispatch')$('guestPlay').click();
+  else if(view==='multiplayer')$('mpEnter').click();
+};
 function result(mode,{route,day,ranked}) {
   const night='NIGHT '+String(day).padStart(2,'0')+' / 05';
   $('resultLabel').textContent=mode==='victory'?'ESCAPE RECORDED / '+night:night;
@@ -115,6 +162,11 @@ const slots=Array.from({length:4},(_,i)=>{
 });
 
 const ui={
+  control:devices.mark,controlKind:devices.kind,
+  checkpoint(value,done=false) {
+    sync.local(runOwner,value);
+    if(done&&runOwner)sync.save(runOwner,null).catch(()=>{});
+  },
   show(mode,data) {
     if(mode==='note'){$('noteTitle').textContent=data.name;$('noteText').textContent=data.body;}
     if(['interlude','victory','defeat'].includes(mode))result(mode,data);
@@ -174,6 +226,7 @@ const ui={
   prompt(text) {
     if(text===lastPrompt)return;
     lastPrompt=text;$('prompt').hidden=!text;$('prompt').lastElementChild.textContent=text;
+    $('touchUse').textContent=text||'Use';
     $('reticle').classList.toggle('focus',Boolean(text));
   },
   toast(text){const el=$('toast');clearTimeout(toastTimer);el.textContent=text;el.classList.add('show');toastTimer=setTimeout(()=>el.classList.remove('show'),2750);},
@@ -198,6 +251,8 @@ function navigate(name,own=false) {
   social?.open(name,own);
   if(name==='multiplayer')multiplayer?.open();
   if(name==='dispatch') {
+    warmGame().catch(()=>{});
+    loadContinue();
     $('playDifficulty').value=settings.difficulty;
     $('playMessage').textContent='';
     if(!social)return;
@@ -209,8 +264,10 @@ function navigate(name,own=false) {
   }
 }
 function back() {
+  if(!$('fatal').hidden){$('fatal').hidden=true;return;}
   if(menuDialogs.has(view)) {
     const destination=returnView;
+    if(view==='settings')sync.flush();
     switchTo(destination);
     if(destination==='multiplayer')multiplayer?.open();
   }
@@ -220,23 +277,57 @@ function back() {
 function setRunDifficulty() {
   settings.difficulty=$('playDifficulty').value;
   $('difficulty').value=settings.difficulty;
-  try{localStorage.setItem('blackmere.settings',JSON.stringify(settings));}catch{}
+  persistSettings();
+}
+async function loadContinue() {
+  const generation=++continueRequest,id=accountId;
+  const display=value=>{
+    if(generation!==continueRequest||view!=='dispatch')return;
+    continueSave=value?.checkpoint;
+    $('continueSolo').hidden=$('soloDetail').hidden=!continueSave;
+    if(continueSave)$('soloDetail').textContent='Night '+continueSave.state.day+' · '+levels[continueSave.difficulty].label+' · Unranked';
+  };
+  display(sync.read(id));
+  display(await sync.refresh(id));
+}
+async function startSolo(checkpoint=null) {
+  const button=checkpoint?$('continueSolo'):$('guestPlay');
+  button.disabled=true;runOwner=accountId;
+  if(!checkpoint)setRunDifficulty();
+  $('playMessage').textContent='Preparing the house…';
+  const ready=await createGameOnce();
+  if(ready&&view==='dispatch'){ $('playMessage').textContent='';ready.begin(null,checkpoint);}
+  button.disabled=false;
 }
 $('play').onclick=()=>navigate('dispatch');
 $('multiplayerPlay').onclick=()=>{
   if(multiplayer)navigate('multiplayer');
   else location.assign('https://blackmere-house.thealanlu.chatgpt.site/?multiplayer=1');
 };
-$('guestPlay').onclick=()=>{setRunDifficulty();createGameOnce()?.begin();};
+$('guestPlay').onclick=()=>startSolo();
+$('continueSolo').onclick=()=>{if(continueSave)startSolo(continueSave);};
+$('saveSolo').onclick=async()=>{
+  if(saveInFlight)return;
+  const checkpoint=game?.checkpoint();
+  if(!checkpoint)return;
+  saveInFlight=true;$('saveSolo').disabled=true;$('saveStatus').textContent='Saving your place…';
+  try {
+    const cloud=await sync.save(runOwner,checkpoint);
+    if(game.mode==='pause')game.menu(true);
+    $('saveStatus').textContent=cloud?'Saved to your account.':'Saved on this device.';
+  }catch(error){$('saveStatus').textContent=error.message;}
+  finally{saveInFlight=false;$('saveSolo').disabled=false;}
+};
 if(social)$('rankedPlay').onclick=async()=>{
   if(!social.profile)return navigate(social.user?'profile':'auth',true);
   setRunDifficulty();
   const button=$('rankedPlay');button.disabled=true;
   $('playMessage').textContent='Starting verified run…';
+  const pendingGame=createGameOnce();
   try {
     const attempt=await rankedAttempt(settings.difficulty,text=>ui.toast(text));
     if(view!=='dispatch'){attempt.cancel();return;}
-    const game=createGameOnce();
+    const game=await pendingGame;
     if(game)game.begin(attempt);else attempt.cancel();
   }catch(error){$('playMessage').textContent=error.message;}
   finally{button.disabled=false;}
@@ -260,4 +351,5 @@ document.addEventListener('keydown',event=>{
   }
 });
 social?.initialize();
+configurePwa(navigate);
 if(multiplayer&&(multiplayer.hasInvite||new URLSearchParams(location.search).has('multiplayer')))navigate('multiplayer');

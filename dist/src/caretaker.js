@@ -15,6 +15,7 @@ const metal=material(0x343e3e,{metalness:.82,roughness:.37});
 const shoe=material(0x1b1716);
 const faceMat=new T.MeshPhysicalMaterial({color:0xb9aba8,roughness:.85,specularIntensity:.31,bumpMap:skinDetail,bumpScale:.0038,side:T.DoubleSide});
 const sphere=new T.SphereGeometry(1,22,16);
+const compactSphere=new T.SphereGeometry(1,12,9);
 
 function mesh(g,m,parent,x=0,y=0,z=0) {
   const obj=new T.Mesh(g,m);obj.position.set(x,y,z);
@@ -340,5 +341,7 @@ export function createCaretaker() {
     head.eyes.forEach(e=>{e.morphTargetInfluences[0]=blink*.94;});
     eyeSurface.offset.x=-Math.sin(head.root.rotation.y)*.26;
   }
-  return {root,animate};
+  return {root,animate,detail(low){
+    root.traverse(node=>{if(node.geometry===sphere||node.geometry===compactSphere)node.geometry=low?compactSphere:sphere;});
+  }};
 }

@@ -28,7 +28,27 @@ Open [http://127.0.0.1:8127](http://127.0.0.1:8127) in a WebGL 2 browser. The lo
 | Escape journal | Tab |
 | Pause | Esc or P |
 
-On a touch device, drag the scene to look around and use the on-screen controls. Check the journal for both escape routes. Drawers and cupboards can hold tools, and item locations vary by run. Items and escape progress carry over after capture. Difficulty is chosen at the start of a run.
+On a touch device, use the virtual joystick to move, drag the scene to look, and use the contextual action button. Landscape is preferred, and portrait stays playable. The game switches the HUD when it detects touch, mouse, keyboard, or standard controller input. In Settings, adjust touch and controller aim, inversion, joystick size, opacity, side and offsets, motion effects, and optional gyroscope and haptic controls.
+
+Check the journal for both escape routes. Drawers and cupboards can hold tools, and item locations vary by run. Items and escape progress carry over after capture. Difficulty is chosen at the start of a run. Use **Save & Exit** to keep one unranked solo checkpoint. The game also keeps local checkpoints during play. When signed in and online, **Save & Exit** uploads the checkpoint to your account so another device can open it under **Single Player → Continue Solo Save**. Verified runs stay tied to their original session.
+
+| Controller | Action |
+| --- | --- |
+| Left stick / right stick | Move / look |
+| A / B / X / Y | Interact / crouch / flashlight / journal |
+| Right trigger / left trigger | Sprint / drop |
+| Left and right bumpers | Select inventory slots |
+| Menu / View | Pause / back |
+| L3 / R3 | Granny’s snare / door bolt |
+| D-pad up | Multiplayer push-to-talk |
+
+## Browser and home screen
+
+Play in a modern WebGL 2 browser. Use **Automatic** graphics for a device-based starting preset, or choose **Low**, **Medium**, **High**, or **Ultra**. Graphics profiles control shadows, texture resolution, model detail, lighting, and particle density. Adaptive resolution lowers the render workload under sustained pressure. A 30 FPS cap is available for battery-powered devices. Frame rate varies by hardware, browser, and temperature.
+
+Choose **Install Blackmere House** in the title menu. On iPhone or iPad, use Safari’s Share menu and **Add to Home Screen**. Fullscreen in Settings and the pause menu uses the browser’s available fullscreen controls. Gyroscope access requires permission in supported browsers, and haptics depend on the device. After the game finishes caching, a previously visited installation can start or continue local Single Player offline. Multiplayer, rankings, friends, and account sync need a connection.
+
+Graphics, frame rate, joystick layout, and device permissions stay local. Signed-in audio, look sensitivity, inversion, brightness, motion effects, and sound captions follow the account.
 
 ## Multiplayer
 
@@ -36,7 +56,7 @@ Open **Multiplayer** on the server-hosted game and sign in. **Co-op vs. AI** tak
 
 Survivors share both escape routes. Press **E** near a captured teammate to rescue them before the window closes. Granny uses **E** to open a door or swing at a Survivor, **Q** to set a snare, and **X** to bolt an ordinary door. Snares and bolts have cooldowns. An escaped or eliminated Survivor can watch a teammate while the remaining players finish.
 
-The match keeps running while menus are open. A disconnected player has 45 seconds to reconnect. The room remains on the Multiplayer screen after a reload in the same tab, and the invite code can also be used to reconnect. Public PvP matches can earn competitive points. Private, short, forfeited, and repeat-opponent matches within six hours are casual.
+The match keeps running while menus are open. A disconnected player has 45 seconds to reconnect. The room remains on the Multiplayer screen after a reload in the same tab. On a different device, sign in with the same account and use **Rejoin Active Match** or the room code. All supported devices use the same rooms and matchmaking. Public PvP matches can earn competitive points. Private, short, forfeited, and repeat-opponent matches within six hours are casual.
 
 Proximity voice is off by default. The host can allow it, then each player can opt in from the match menu. Hold **V** or the touch **Talk** button to transmit to nearby players, including Granny. Voice uses direct WebRTC and can fail on restrictive networks that require a relay. Lobby and team text chat are available separately.
 

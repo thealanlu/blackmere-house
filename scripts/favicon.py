@@ -1,4 +1,4 @@
-"""Render the original lantern-eye emblem to the four published PNG sizes."""
+"""Render the original lantern-eye emblem for browser tabs and app launchers."""
 import math
 import struct
 import zlib
@@ -22,14 +22,23 @@ def emblem(x,y):
 def chunk(tag,data):
     return struct.pack('!I',len(data))+tag+data+struct.pack('!I',zlib.crc32(tag+data))
 
-for size in (16,32,48,192):
+def render(size, filename, maskable=False):
     rgba=bytearray()
     for y in range(size):
         rgba.append(0)
         for x in range(size):
-            samples=[emblem((x+(i+.5)/4)*32/size,(y+(j+.5)/4)*32/size) for i in range(4) for j in range(4)]
+            scale=.63 if maskable else 1
+            samples=[emblem(16+((x+(i+.5)/4)*32/size-16)/scale,16+((y+(j+.5)/4)*32/size-16)/scale)
+                     for i in range(4) for j in range(4)]
+            if maskable:
+                samples=[v if v[3] else (14,22,20,255) for v in samples]
             n=sum(v[3]>0 for v in samples)
             rgba.extend([round(sum(v[c] for v in samples)/max(1,n)) for c in range(3)]+[round(n*255/16)])
     header=struct.pack('!2I5B',size,size,8,6,0,0,0)
-    (Path(__file__).resolve().parents[1]/'dist'/'assets'/f'favicon-{size}.png').write_bytes(
+    (Path(__file__).resolve().parents[1]/'dist'/'assets'/filename).write_bytes(
         b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',header)+chunk(b'IDAT',zlib.compress(rgba,9))+chunk(b'IEND',b''))
+
+for size in (16,32,48,192):
+    render(size,f'favicon-{size}.png')
+render(512,'app-512.png')
+render(512,'app-maskable-512.png',True)

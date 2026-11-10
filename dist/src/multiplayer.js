@@ -1,6 +1,5 @@
 import {api} from './online.js';
 import {MATCH_VERSION} from './match.js';
-import {roomPreview} from './survivor.js';
 import {proximityVoice} from './voice.js';
 
 const $=id=>document.getElementById(id);
@@ -36,7 +35,7 @@ const inviteCode=new URLSearchParams(location.search).get('room')?.toUpperCase()
 
 function transport(room,onResult,onLeave,onClosed,voice) {
   const path=base+'/'+room.code+'/exchange';
-  let active=false,timer,controller,seq=0,after=0,worldVersion=0,flight=null,known=false,retries=0,receive,connection;
+  let active=false,idling=false,timer,controller,seq=0,after=0,worldVersion=0,flight=null,known=false,retries=0,receive,connection;
   const input={keys:0,yaw:0,pitch:0,actions:0,slot:-1};
 
   async function exchange() {
@@ -64,24 +63,26 @@ function transport(room,onResult,onLeave,onClosed,voice) {
       retries++;
     }finally {
       clearTimeout(timeout);
-      if(active)timer=setTimeout(exchange,retries?Math.min(1550,175*2**Math.min(retries,4)):Math.max(35,162-(performance.now()-started)));
+      const interval=document.hidden?900:idling?315:162;
+      if(active)timer=setTimeout(exchange,retries?Math.min(1550,175*2**Math.min(retries,4)):Math.max(35,interval-(performance.now()-started)));
     }
   }
   return {
     start(onPacket,onNetwork){active=true;receive=onPacket;connection=onNetwork;exchange();},
     stop(){active=false;clearTimeout(timer);controller?.abort();voice?.stop();},
     input(keys,yaw,pitch,actions,slot) {
+      idling=false;
       input.keys=keys;input.yaw=Math.round(wrap(yaw)*1000);input.pitch=Math.round(pitch*1000);
       input.actions|=actions;if(slot!==-1)input.slot=slot;
     },
-    idle(){input.keys=0;input.actions=0;input.slot=-1;voice?.talk(false);},
+    idle(){idling=true;input.keys=0;input.actions=0;input.slot=-1;voice?.talk(false);},
     talk(value){voice?.talk(value);},
     complete:onResult,leave:onLeave
   };
 }
 
-export function bindMultiplayer({navigate,isOpen,social,game}) {
-  let room=null,packet=null,busy=false,loading=false,lastDirectory=0,preview,previewFrame,angle=-.28;
+export function bindMultiplayer({navigate,isOpen,social,game,currentGame}) {
+  let room=null,packet=null,busy=false,loading=false,lastDirectory=0,preview,previewLoad,previewFrame,previewAt=0,angle=-.28;
   let lastRoom='',lastHost='',lastChat='',lastReport='',lastBoard=0,friendRoom='',opening=0;
   let muted=new Set(),voice;
   try {muted=new Set(JSON.parse(localStorage.getItem('blackmere.muted')??'[]'));}catch{}
@@ -120,10 +121,11 @@ export function bindMultiplayer({navigate,isOpen,social,game}) {
     }):[node('li','No messages yet.','mp-empty')]));
     list.scrollTop=list.scrollHeight;
   }
-  function animatePreview() {
+  function animatePreview(now) {
     if(!room||!isOpen('multiplayer')){previewFrame=null;return;}
-    if(preview) {
-      angle+=matchMedia('(prefers-reduced-motion: reduce)').matches?0:.006;
+    if(preview&&!document.hidden&&now-previewAt>=31) {
+      angle+=matchMedia('(prefers-reduced-motion: reduce)').matches?0:.011;
+      previewAt=now;
       const own=room.members.find(m=>m.id===room.me);
       const hunter=room.mode==='pvp'&&(own?.role==='granny'||(own?.preference==='granny'&&room.phase==='lobby'));
       preview.draw(angle,hunter);
@@ -133,7 +135,12 @@ export function bindMultiplayer({navigate,isOpen,social,game}) {
   }
   function startPreview() {
     if(previewFrame||preview===false||!isOpen('multiplayer'))return;
-    if(!preview)try{preview=roomPreview($('mpPreview'));}catch{preview=false;}
+    if(!preview) {
+      previewLoad??=import('./survivor.js').then(({roomPreview})=>{
+        if(isOpen('multiplayer')&&room)preview=roomPreview($('mpPreview'));
+      }).catch(()=>{preview=false;}).finally(()=>{previewLoad=null;if(preview)startPreview();});
+      return;
+    }
     if(preview)previewFrame=requestAnimationFrame(animatePreview);
   }
   function renderRoom(next) {
@@ -236,6 +243,8 @@ export function bindMultiplayer({navigate,isOpen,social,game}) {
       const data=await api(base,{retry:false});
       if(!isOpen('multiplayer')||room)return;
       $('mpGate').hidden=true;$('mpDirectory').hidden=false;$('mpRoom').hidden=true;
+      $('mpResumeSeat').hidden=!data.resume;
+      $('mpResumeSeat').onclick=()=>{if(data.resume)join(data.resume);};
       put('mpIntro','Escape together, or take the Caretaker’s place.');
       listEntry('mpPublic',data.rooms,'No public rooms are waiting.',r=>listRow(r.host,title(r.mode)+' · '+r.seats+'/'+r.capacity+' players','Join',()=>join(r.code)));
       listEntry('mpInvites',data.invites,'No pending invitations.',r=>listRow(r.username,'Room '+r.code,'Join',()=>join(r.code)));
@@ -310,7 +319,8 @@ export function bindMultiplayer({navigate,isOpen,social,game}) {
     if(!isOpen('multiplayer')||generation!==opening)return;
     checkAccount();
     if(!online()) {
-      $('mpGate').hidden=false;$('mpDirectory').hidden=true;$('mpRoom').hidden=true;
+      $('mpGate').hidden=!navigator.onLine;$('mpDirectory').hidden=true;$('mpRoom').hidden=true;
+      message(navigator.onLine?'':'You’re offline. Reconnect to join a room or return to your match.',!navigator.onLine);
       return;
     }
     $('mpGate').hidden=true;
@@ -343,7 +353,7 @@ export function bindMultiplayer({navigate,isOpen,social,game}) {
   }
   function closed(text) {
     clearSeat();
-    game()?.closeMatch();
+    currentGame()?.closeMatch();
     navigate('multiplayer');message(text,true);
   }
   function selectTab(records) {
@@ -383,10 +393,14 @@ export function bindMultiplayer({navigate,isOpen,social,game}) {
     e.preventDefault();
     if(await action({op:'report',target:$('mpReportPlayer').value,reason:$('mpReportReason').value}))message('Report received.');
   };
-  $('mpEnter').onclick=()=>{
+  $('mpEnter').onclick=async()=>{
     if(room?.phase!=='play')return;
-    const match=game();
-    if(!match)return;
+    const target=room.game;
+    $('mpEnter').disabled=true;
+    if(preview){preview.dispose();preview=null;}
+    const match=await game();
+    $('mpEnter').disabled=false;
+    if(!match||room?.game!==target||!isOpen('multiplayer'))return;
     voice=room.voice?proximityVoice(room,(text,enabled)=>{
       put('mpVoiceStatus',text);put('mpVoiceToggle',enabled?'Disable microphone':'Enable microphone');
       $('mpHudVoice').hidden=$('mpTalk').hidden=!enabled;
@@ -414,7 +428,7 @@ export function bindMultiplayer({navigate,isOpen,social,game}) {
     if(!room||!packet)return;
     const eligible=packet.roster.filter(p=>p.role==='survivor'&&p.status==='active');
     const next=eligible[(eligible.findIndex(p=>p.name===packet.watch?.name)+1)%eligible.length];
-    if(next)try{await rq('spectate',{target:next.id});game()?.resume();}catch(e){put('mpTeamError',e.message);}
+    if(next)try{await rq('spectate',{target:next.id});currentGame()?.resume();}catch(e){put('mpTeamError',e.message);}
   };
   async function refreshTeam() {
     if(!room||!isOpen('teamChat'))return;

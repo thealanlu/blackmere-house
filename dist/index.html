@@ -2,11 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="color-scheme" content="dark">
   <meta name="description" content="Escape Blackmere House in five nights. An original first-person survival horror game with verified escape rankings.">
   <title>Blackmere House</title>
   <meta name="theme-color" content="#101413">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="icon" href="assets/favicon-16.png" type="image/png" sizes="16x16">
   <link rel="icon" href="assets/favicon-32.png" type="image/png" sizes="32x32">
   <link rel="icon" href="assets/favicon-48.png" type="image/png" sizes="48x48">
@@ -15,6 +17,7 @@
   <link rel="manifest" href="blackmere.webmanifest">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="multiplayer.css">
+  <link rel="stylesheet" href="adaptive.css">
 </head>
 <body>
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg">
@@ -42,6 +45,7 @@
       <nav class="menu-actions" aria-label="Main menu">
         <button id="play" class="primary"><span>Single Player</span><svg><use href="#arrow"/></svg></button>
         <button id="multiplayerPlay" class="secondary multiplayer-menu"><svg aria-hidden="true"><use href="#people"/></svg><span>Multiplayer</span><small>ONLINE</small></button>
+        <p id="offlineMenu" class="offline-menu" hidden>Offline · Single Player is available on this device.</p>
         <div class="menu-grid">
           <button data-online-only data-open="leaderboards" class="menu-link"><svg><use href="#trophy"/></svg><span>Leaderboards</span></button>
           <button data-online-only data-open="friends" class="menu-link"><svg><use href="#people"/></svg><span>Friends</span><small id="notificationBadge" hidden></small></button>
@@ -49,6 +53,7 @@
           <button data-open="settings" class="menu-link"><svg><use href="#settingsIcon"/></svg><span>Settings</span></button>
         </div>
         <div class="menu-bottom"><button data-online-only data-open="auth" class="text-button" id="accountMenu">Log in / Sign up</button><button data-open="controls" class="text-button">How to Play</button><a class="text-button pages-only" href="https://blackmere-house.thealanlu.chatgpt.site/">Accounts &amp; leaderboards ↗</a></div>
+        <button type="button" class="text-button install-link" id="installGame" hidden>Install Blackmere House</button>
       </nav>
     </div>
     <footer class="menu-footer"><span>VOL. I <i></i> THE BLACKMERE RECORDS</span><span>HEADPHONES RECOMMENDED</span></footer>
@@ -64,6 +69,8 @@
         <small data-online-only id="rankedHelp">A player profile is required to record a verified result.</small>
         <button id="guestPlay" class="secondary"><span class="pages-only">Begin run</span><span data-online-only>Guest run</span></button>
         <small>Play without recording statistics or ranking.</small>
+        <button id="continueSolo" class="secondary" hidden>Continue Solo Save</button>
+        <small id="soloDetail" hidden></small>
       </div><p id="playMessage" class="feedback" aria-live="polite"></p>
     </div>
   </section>
@@ -74,6 +81,7 @@
       <p class="feedback" id="mpStatus" role="status"></p>
       <div id="mpGate" class="dialog-blank" hidden><strong>Sign in to enter the house.</strong><p>Use your gamer tag to join friends, keep your records, and reconnect to your match.</p><button type="button" class="primary" data-open="auth">Log in / Sign up</button></div>
       <div id="mpDirectory" hidden>
+        <button id="mpResumeSeat" class="secondary" hidden>Rejoin Active Match</button>
         <div class="mp-tabs" aria-label="Multiplayer sections"><button class="secondary" id="mpRoomsTab" aria-pressed="true">Rooms</button><button class="secondary" id="mpRecordsTab" aria-pressed="false">Records</button></div>
         <div id="mpRooms" class="mp-columns">
           <section class="dialog-card mp-actions"><p class="eyebrow amber">01 / FIND A MATCH</p><h3>Choose your side</h3>
@@ -250,21 +258,54 @@
           <h3>Gameplay &amp; display</h3>
           <label class="preference"><span>Difficulty</span><select id="difficulty" aria-describedby="levelDescription"><option value="story">Story</option><option value="normal">Standard</option><option value="dread">Nightmare</option></select></label>
           <p class="setting-detail" id="levelDescription"></p>
-          <label class="preference"><span>Graphics</span><select id="graphics"><option value="low">Low</option><option value="medium">Balanced</option><option value="high">High</option></select></label>
+          <label class="preference"><span>Graphics</span><select id="graphics"><option value="auto">Automatic</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select></label>
+          <label class="preference"><span>Frame-rate limit</span><select id="frameRate"><option value="auto">Automatic</option><option value="30">30 FPS</option><option value="60">60 FPS</option></select></label>
+          <label class="preference"><span>Adaptive resolution</span><input id="adaptive" type="checkbox"></label>
+          <label class="slider-label" for="brightness">Brightness</label><output id="brightnessValue" for="brightness"></output>
+          <input id="brightness" type="range" min=".72" max="1.65" step=".01">
           <label class="preference"><span>Camera motion and light flicker</span><input id="motion" type="checkbox"></label>
-          <label class="preference"><span>Directional footstep captions</span><input id="footstepCues" type="checkbox"></label>
+          <label class="preference"><span>Directional sound captions</span><input id="footstepCues" type="checkbox"></label>
         </section>
         <section class="dialog-card preferences-card">
-          <h3>Audio &amp; controls</h3>
+          <h3>Audio &amp; aim</h3>
           <label class="slider-label" for="volume">Master volume</label><output id="volumeValue" for="volume"></output>
           <input id="volume" type="range" min="0" max="1" step=".01">
           <label class="slider-label" for="music">Music volume</label><output id="musicValue" for="music"></output>
           <input id="music" type="range" min="0" max="1" step=".01">
-          <label class="slider-label" for="sensitivity">Look sensitivity</label><output id="sensitivityValue" for="sensitivity"></output>
+          <label class="slider-label" for="sensitivity">Mouse sensitivity</label><output id="sensitivityValue" for="sensitivity"></output>
           <input id="sensitivity" type="range" min=".25" max="2.5" step=".025">
+          <label class="slider-label" for="touchSensitivity">Touch look sensitivity</label><output id="touchSensitivityValue" for="touchSensitivity"></output>
+          <input id="touchSensitivity" type="range" min=".3" max="2.8" step=".025">
+          <label class="slider-label" for="padSensitivity">Controller look sensitivity</label><output id="padSensitivityValue" for="padSensitivity"></output>
+          <input id="padSensitivity" type="range" min=".4" max="2.5" step=".025">
+          <label class="preference"><span>Invert horizontal aim</span><input id="invertX" type="checkbox"></label>
+          <label class="preference"><span>Invert vertical aim</span><input id="invertY" type="checkbox"></label>
+        </section>
+        <section class="dialog-card preferences-card touch-preferences">
+          <h3>Touch layout</h3>
+          <label class="preference"><span>On-screen controls</span><select id="controlsMode"><option value="auto">Automatic</option><option value="touch">Always show</option><option value="traditional">Hide</option></select></label>
+          <label class="preference"><span>Joystick side</span><select id="joystickSide"><option value="left">Left</option><option value="right">Right</option></select></label>
+          <label class="slider-label" for="joystickSize">Joystick size</label><output id="joystickSizeValue" for="joystickSize"></output>
+          <input id="joystickSize" type="range" min=".7" max="1.32" step=".01">
+          <label class="slider-label" for="joystickOpacity">Joystick opacity</label><output id="joystickOpacityValue" for="joystickOpacity"></output>
+          <input id="joystickOpacity" type="range" min=".3" max="1" step=".01">
+          <label class="slider-label" for="joystickInset">Joystick side inset</label><output id="joystickInsetValue" for="joystickInset"></output>
+          <input id="joystickInset" type="range" min="0" max="36" step="1">
+          <label class="slider-label" for="joystickHeight">Joystick height offset</label><output id="joystickHeightValue" for="joystickHeight"></output>
+          <input id="joystickHeight" type="range" min="0" max="64" step="1">
+          <label class="preference"><span>Gyroscope aim</span><input id="gyro" type="checkbox"></label>
+          <label class="preference"><span>Haptic feedback</span><input id="haptics" type="checkbox"></label>
+          <p id="motionStatus" class="setting-detail" role="status"></p>
+        </section>
+        <section class="dialog-card preferences-card">
+          <h3>Screen &amp; device</h3>
+          <button type="button" class="secondary" data-fullscreen>Enter Fullscreen</button>
+          <p id="fullscreenStatus" class="setting-detail" role="status"></p>
+          <p class="setting-detail">Connect a standard Bluetooth or USB controller, then press a button to wake it.</p>
+          <p id="preferenceStatus" class="setting-detail" role="status">Screen and touch layout settings are saved on this device.</p>
         </section>
       </div>
-      <footer class="dialog-footer"><span>Changes save automatically on this device.</span><button class="primary" data-back>Done</button></footer>
+      <footer class="dialog-footer"><span>Controls adjust as you switch input methods.</span><button class="primary" data-back>Done</button></footer>
     </div>
   </dialog>
   <dialog id="controls" class="menu-dialog guide-dialog" aria-labelledby="controlsTitle">
@@ -281,8 +322,9 @@
           <dl class="controls-list"><dt>Interact / hide / use tool</dt><dd><kbd>E</kbd></dd><dt>Choose slot / drop</dt><dd><kbd>1–4</kbd> <kbd>G</kbd></dd><dt>Flashlight / journal</dt><dd><kbd>F</kbd> <kbd>Tab</kbd></dd><dt>Pause</dt><dd><kbd>Esc</kbd> <span>or</span> <kbd>P</kbd></dd></dl>
         </section>
       </div>
-      <div class="guide-tip"><svg aria-hidden="true"><use href="#flashIcon"/></svg><div><strong>Stay quiet</strong><p>Crouch to muffle your steps or drop a tool to draw her away. Her nearby footsteps have directional captions you can turn off in Settings.</p></div></div>
-      <footer class="dialog-footer"><span>On touch screens, drag to look and use the on-screen buttons.</span><button class="primary" data-back>Done</button></footer>
+      <div class="guide-tip"><svg aria-hidden="true"><use href="#flashIcon"/></svg><div><strong>Stay quiet</strong><p>Crouch to muffle your steps or drop a tool to draw her away. Directional captions show nearby footsteps and other loud sounds. You can turn them off in Settings.</p></div></div>
+      <div class="guide-tip"><svg aria-hidden="true"><use href="#settingsIcon"/></svg><div><strong>Touch and controller</strong><p>Use the joystick to move and drag the scene to look. On a controller, use both sticks, A to interact, B to crouch, right trigger to sprint, X for light, and Menu to pause. Granny uses L3 for a snare and R3 for a door bolt.</p></div></div>
+      <footer class="dialog-footer"><span>Landscape gives you a wider view on phones.</span><button class="primary" data-back>Done</button></footer>
     </div>
   </dialog>
 
@@ -312,14 +354,17 @@
       <div class="flash"><svg><use href="#flashIcon"/></svg><span id="flashLabel">LIGHT ON</span><kbd>F</kbd></div>
     </div>
     <div class="touch-controls" aria-label="Touch controls">
-      <div class="touch-pad"><button data-touch="KeyW" aria-label="Move forward">↑</button><button data-touch="KeyA" aria-label="Move left">←</button><button data-touch="KeyS" aria-label="Move back">↓</button><button data-touch="KeyD" aria-label="Move right">→</button></div>
-      <div class="touch-actions"><button data-touch="KeyE">Use</button><button data-touch="ShiftLeft">Run</button><button data-touch="KeyC">Crouch</button><button data-touch="KeyF">Light</button><button data-touch="KeyG">Drop</button><button data-touch="KeyQ" data-granny hidden>Snare</button><button data-touch="KeyX" data-granny hidden>Bolt</button><button data-touch="KeyV" id="mpTalk" hidden>Talk</button></div>
+      <div id="joystick" class="joystick" aria-label="Movement joystick"><span class="joystick-rings" aria-hidden="true"></span><span id="joystickThumb" aria-hidden="true"></span></div>
+      <div class="touch-actions"><button data-touch="KeyE" id="touchUse">Use</button><button data-touch="ShiftLeft">Run</button><button data-touch="KeyC">Crouch</button><button data-touch="KeyF">Light</button><button data-touch="KeyG">Drop</button><button data-touch="KeyQ" data-granny hidden>Snare</button><button data-touch="KeyX" data-granny hidden>Bolt</button><button data-touch="KeyV" id="mpTalk" hidden>Talk</button></div>
     </div>
+    <aside id="rotateHint" class="rotate-hint" hidden><div><strong>A wider view</strong><span>Rotate to landscape for more room to look.</span></div><button type="button" id="dismissRotate" class="text-button" aria-label="Dismiss rotate suggestion">×</button></aside>
   </section>
   <section id="pause" class="screen overlay" hidden>
     <div class="panel narrow end">
       <p class="eyebrow amber">BLACKMERE HOUSE</p><h2 id="pauseTitle">Paused</h2><p id="mpPauseDetail" hidden>The online match is still running.</p>
       <div class="stack"><button class="primary" data-resume>Resume <svg><use href="#arrow"/></svg></button><button id="mpTeamChat" class="secondary" hidden>Team Chat</button><button id="mpSpectateNext" class="secondary" hidden>Watch Next Survivor</button><button class="secondary" data-open="settings">Settings</button><button class="text-button" data-menu id="pauseLeave">Abandon run</button></div>
+      <div class="pause-tools"><button type="button" id="saveSolo" class="secondary" hidden>Save &amp; Exit</button><button type="button" class="text-button" data-fullscreen>Enter Fullscreen</button></div>
+      <p id="saveStatus" class="feedback" role="status"></p>
       <details id="mpVoiceConsent" class="mp-voice-consent" hidden><summary>Proximity voice</summary>
         <p>Hold V or Talk to share your voice with nearby players, including Granny. Direct connections can reveal your network address to other players.</p>
         <button type="button" class="secondary" id="mpVoiceToggle">Enable microphone</button><p id="mpVoiceStatus" role="status">Voice is off.</p>
@@ -352,7 +397,14 @@
       <div class="stack"><button class="primary" id="resultNext"><span></span><svg><use href="#arrow"/></svg></button><button class="text-button" data-menu>Return to title</button></div>
     </div>
   </section>
-  <div id="fatal" class="fatal" role="alert" hidden></div>
+  <section id="fatal" class="graphics-error" aria-labelledby="graphicsErrorTitle" hidden><div class="panel narrow">
+    <p class="eyebrow amber">GRAPHICS CHECK</p><h2 id="graphicsErrorTitle">The 3D view is unavailable</h2><p id="graphicsErrorText" role="alert"></p>
+    <div class="stack"><button type="button" class="primary" id="graphicsRetry">Retry on Low</button><button type="button" class="secondary" id="graphicsDismiss">Back to Game Menus</button></div>
+  </div></section>
+  <dialog id="installHelp" class="menu-dialog guide-dialog" aria-labelledby="installTitle">
+    <header class="dialog-chrome"><span><svg aria-hidden="true"><use href="#house"/></svg> Blackmere House <i></i> Home screen</span><button type="button" class="dialog-close" data-back aria-label="Close installation help"><svg aria-hidden="true"><use href="#closeIcon"/></svg></button></header>
+    <div class="dialog-body"><div class="dialog-intro"><h2 id="installTitle" tabindex="-1">Install Blackmere House</h2><p>In Safari on iPhone or iPad, open Share and choose Add to Home Screen. In other supported browsers, look for Install or Add to Home screen in the browser menu.</p></div><p>After the offline files finish downloading, you can play Single Player without a connection. Online matches and account features require internet access.</p><footer class="dialog-footer"><button type="button" class="primary" data-back>Done</button></footer></div>
+  </dialog>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

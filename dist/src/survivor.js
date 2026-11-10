@@ -8,6 +8,7 @@ const palettes=[
   [0x6a5038,0x313037,0xb78560,0x29211b]
 ];
 const materials=new Map(),sphere=new T.SphereGeometry(1,16,12),cube=new T.BoxGeometry(1,1,1);
+const compactSphere=new T.SphereGeometry(1,10,7);
 function material(color) {
   if(!materials.has(color))materials.set(color,new T.MeshStandardMaterial({color,roughness:.88}));
   return materials.get(color);
@@ -60,7 +61,9 @@ export function survivorModel(index) {
     oval(arm,skin,side*.039,-.586,.039,.059,.082,.059);
     if(side===1)block(arm,0x232522,.040,-.575,.086,.077,.070,.17);
   }
-  return {root,pose(pose,time,dt) {
+  return {root,detail(low){
+    root.traverse(node=>{if(node.geometry===sphere||node.geometry===compactSphere)node.geometry=low?compactSphere:sphere;});
+  },pose(pose,time,dt) {
     const damp=T.MathUtils.damp;
     const kneel=pose.status==='captured',crouch=pose.crouch||kneel;
     const bend=kneel?1.14:crouch?.92:0;
@@ -81,7 +84,7 @@ export function survivorModel(index) {
 }
 
 export function roomPreview(canvas) {
-  const renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:true});
+  const renderer=new T.WebGLRenderer({canvas,antialias:false,alpha:true,powerPreference:'low-power'});
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.4));
   renderer.outputColorSpace=T.SRGBColorSpace;
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(32,1,.1,25);
@@ -91,6 +94,7 @@ export function roomPreview(canvas) {
   const model=survivorModel(0),hunter=createCaretaker();
   scene.add(model.root,hunter.root);
   return {
+    dispose(){renderer.dispose();},
     draw(angle,granny) {
       const w=canvas.clientWidth,h=canvas.clientHeight;
       if(!w||!h)return;

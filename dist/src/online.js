@@ -2,8 +2,14 @@ import {RUN_VERSION} from './rules.js';
 
 let refresh;
 export async function api(path,{method='GET',data,signal,retry=true}={}) {
-  const response=await fetch('/api/'+path,{method,signal,credentials:'same-origin',cache:'no-store',
-    headers:data?{'Content-Type':'application/json'}:undefined,body:data?JSON.stringify(data):undefined});
+  let response;
+  try {
+    response=await fetch('/api/'+path,{method,signal,credentials:'same-origin',cache:'no-store',
+      headers:data?{'Content-Type':'application/json'}:undefined,body:data?JSON.stringify(data):undefined});
+  }catch(error) {
+    if(signal?.aborted)throw error;
+    throw new Error(navigator.onLine?'Cannot reach Blackmere’s online services. Try again.':'You’re offline. Reconnect to use online features.');
+  }
   if(response.status===401&&retry&&!path.startsWith('auth/')) {
     refresh??=api('auth/refresh',{method:'POST',retry:false}).catch(()=>null).finally(()=>{refresh=null;});
     const r=await refresh;

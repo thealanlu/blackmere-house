@@ -158,7 +158,7 @@ async function rankings(db,role,profile) {
     GROUP BY p.id ORDER BY score DESC,wins DESC,p.username COLLATE NOCASE LIMIT 50`,role,id,id);
 }
 async function dashboard(db,profile,now) {
-  const [rows,inbox,stats]=await Promise.all([
+  const [rows,inbox,stats,current]=await Promise.all([
     many(db,`SELECT state FROM multiplayer_rooms WHERE phase='lobby' AND access='public' AND touched>?
       ORDER BY touched DESC LIMIT 25`,now-graceMs),
     many(db,`SELECT i.code,i.sender,p.username,i.sent_at FROM multiplayer_invites i
@@ -166,10 +166,16 @@ async function dashboard(db,profile,now) {
       WHERE i.recipient=? AND i.sent_at>? AND r.touched>? AND NOT EXISTS(
       SELECT 1 FROM blocks b WHERE (b.owner=i.sender AND b.target=i.recipient) OR (b.owner=i.recipient AND b.target=i.sender))
       ORDER BY i.sent_at DESC LIMIT 20`,profile.id,now-graceMs*9,now-graceMs),
-    multiplayerRecord(db,profile.id)
+    multiplayerRecord(db,profile.id),
+    one(db,`SELECT r.code FROM multiplayer_rooms r
+      WHERE r.phase='play' AND r.touched>? AND EXISTS(
+        SELECT 1 FROM json_each(r.state,'$.members') AS p
+        WHERE json_extract(p.value,'$.id')=? AND COALESCE(json_extract(p.value,'$.left'),0)=0
+        AND json_extract(p.value,'$.seen')>?
+      ) ORDER BY r.touched DESC LIMIT 1`,now-graceMs,profile.id,now-graceMs)
   ]);
   const publicRooms=rows.map(r=>brief(JSON.parse(r.state),now)).filter(r=>r.seats>0&&r.seats<r.capacity);
-  return {rooms:publicRooms,invites:inbox,stats};
+  return {rooms:publicRooms,invites:inbox,stats,resume:current?.code??null};
 }
 export async function multiplayerPresence(db,friends,now) {
   const accepted=new Set(friends);

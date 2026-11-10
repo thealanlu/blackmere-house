@@ -39,7 +39,7 @@ async function asAvatar(file) {
 
 export function bindSocial(navigate,isOpen) {
   let current={},config={},authMode='login',avatarPatch,profileTarget=null,page=1,pages=1,boardRequest=0,friendRequest=0;
-  let online=false,multiplayer;
+  let online=false,multiplayer,onAccount;
   function badge(count) {
     $('notificationBadge').hidden=!count;
     $('notificationBadge').textContent=count>99?'99+':count||'';
@@ -56,6 +56,7 @@ export function bindSocial(navigate,isOpen) {
     }catch{current={};online=false;}
     $('accountMenu').textContent=current.profile?'Account':'Log in / Sign up';
     badge(current.notifications);
+    onAccount?.(current.profile?.id??null,online);
     return current;
   }
   function signIn(){authMode='login';navigate('auth');}
@@ -322,6 +323,7 @@ export function bindSocial(navigate,isOpen) {
   },15000);
 
   return {initialize,session,
+    setAccountListener(listener){onAccount=listener;},
     setMultiplayer(value){multiplayer=value;},
     open(name,own=false) {
       if(name==='auth'){showAuth();session().then(()=>{if(isOpen('auth')&&!$('authName').value)showAuth(authMode,true);});}

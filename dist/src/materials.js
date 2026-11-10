@@ -131,3 +131,25 @@ export const materials={
   glow:mat(0xb7824d,{emissive:0x9a5729,emissiveIntensity:1.1}),
   cold:mat(0x768a88,{emissive:0x557c83,emissiveIntensity:1.25}),
 };
+const originalImages=new Map();
+export function setMaterialQuality(edge) {
+  const changed=new Set();
+  for(const material of Object.values(materials)) {
+    const tex=material.map;
+    if(!tex)continue;
+    if(!changed.has(tex)) {
+      changed.add(tex);
+      const original=originalImages.get(tex)??tex.image;
+      originalImages.set(tex,original);
+      const scale=Math.min(1,edge/Math.max(original.width,original.height));
+      if(scale===1)tex.image=original;
+      else {
+        const canvas=Object.assign(document.createElement('canvas'),{width:Math.round(original.width*scale),height:Math.round(original.height*scale)});
+        canvas.getContext('2d').drawImage(original,0,0,canvas.width,canvas.height);tex.image=canvas;
+      }
+      tex.anisotropy=edge>=512?8:edge>=384?4:1;tex.needsUpdate=true;
+    }
+    const bump=edge>=384?tex:null;
+    if(material.bumpMap!==bump){material.bumpMap=bump;material.needsUpdate=true;}
+  }
+}
