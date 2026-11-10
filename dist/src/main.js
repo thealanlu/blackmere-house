@@ -4,19 +4,21 @@ import { rankedAttempt } from './online.js';
 import { bindSocial, timeLabel } from './social.js';
 
 const $=id=>document.getElementById(id);
-const defaults={difficulty:'normal',graphics:'medium',volume:.72,sensitivity:1,motion:!matchMedia('(prefers-reduced-motion: reduce)').matches};
+const defaults={difficulty:'normal',graphics:'medium',volume:.72,music:.55,sensitivity:1,motion:!matchMedia('(prefers-reduced-motion: reduce)').matches};
 let saved={};
 try {saved=JSON.parse(localStorage.getItem('blackmere.settings')||'{}')||{};} catch {}
 const settings={
   difficulty:Object.hasOwn(levels,saved.difficulty)?saved.difficulty:defaults.difficulty,
   graphics:['low','medium','high'].includes(saved.graphics)?saved.graphics:defaults.graphics,
   volume:Number.isFinite(saved.volume)?Math.max(0,Math.min(1,saved.volume)):defaults.volume,
+  music:Number.isFinite(saved.music)?Math.max(0,Math.min(1,saved.music)):defaults.music,
+  footstepCues:typeof saved.footstepCues==='boolean'?saved.footstepCues:true,
   sensitivity:Number.isFinite(saved.sensitivity)?Math.max(.25,Math.min(2.5,saved.sensitivity)):defaults.sensitivity,
   motion:typeof saved.motion==='boolean'?saved.motion:defaults.motion
 };
 const screens=[...document.querySelectorAll('.screen')];
 const menuDialogs=new Map([...document.querySelectorAll('.menu-dialog')].map(dialog=>[dialog.id,dialog]));
-let view='menu', returnView='menu',dialogOrigin,game,toastTimer,revealTimer,threatLabel='',lastPrompt='';
+let view='menu', returnView='menu',dialogOrigin,game,toastTimer,revealTimer,footstepTimer,footstepPulse,threatLabel='',lastPrompt='';
 const guestOnly=document.documentElement.dataset.edition==='guest';
 const social=guestOnly?null:bindSocial(navigate,name=>view===name);
 function fatal(error) {
@@ -31,11 +33,13 @@ function createGameOnce() {
   catch(error){fatal(error);return null;}
 }
 function updateOptions() {
-  for(const key of ['difficulty','graphics','sensitivity','volume'])$(key).value=settings[key];
+  for(const key of ['difficulty','graphics','sensitivity','volume','music'])$(key).value=settings[key];
   $('motion').checked=settings.motion;
+  $('footstepCues').checked=settings.footstepCues;
   $('playDifficulty').value=settings.difficulty;
   $('levelDescription').textContent=levels[settings.difficulty].caption;
   $('volumeValue').textContent=Math.round(settings.volume*100)+'%';
+  $('musicValue').textContent=Math.round(settings.music*100)+'%';
   $('sensitivityValue').textContent=Math.round(settings.sensitivity*100)+'%';
 }
 updateOptions();
@@ -51,6 +55,9 @@ function switchTo(name) {
   const previous=menuDialogs.get(view),dialog=menuDialogs.get(name);
   if(previous&&previous!==dialog)previous.close();
   view=name;
+  if(name!=='play') {
+    clearTimeout(footstepTimer);footstepPulse?.cancel();$('footstepCue').hidden=true;
+  }
   const display=dialog?returnView:name==='play'?'playHud':['victory','interlude','defeat'].includes(name)?'result':name;
   for(const screen of screens)screen.hidden=screen.id!==display;
   if(name!=='caught')$('gameShade').classList.remove('caught');
@@ -147,6 +154,19 @@ const ui={
   threat(state,value) {
     const label=state==='chase'?'RUN':value>.57?'SHE IS CLOSE':'';
     if(label!==threatLabel){threatLabel=label;$('threat').textContent=label;}
+  },
+  footstep(direction,muffled) {
+    const cue=$('footstepCue');
+    cue.dataset.direction=direction;
+    cue.dataset.muffled=String(muffled);
+    cue.lastElementChild.textContent=(muffled?'Muffled steps':'Footsteps')+' · '+direction;
+    cue.hidden=false;
+    if(settings.motion) {
+      footstepPulse?.cancel();
+      footstepPulse=cue.animate([{opacity:.55},{opacity:1,offset:.18},{opacity:.88}],{duration:520,easing:'ease-out'});
+    }
+    clearTimeout(footstepTimer);
+    footstepTimer=setTimeout(()=>{cue.hidden=true;},910);
   },
   prompt(text) {
     if(text===lastPrompt)return;

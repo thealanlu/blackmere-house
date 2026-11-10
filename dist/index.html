@@ -182,11 +182,14 @@
           <p class="setting-detail" id="levelDescription"></p>
           <label class="preference"><span>Graphics</span><select id="graphics"><option value="low">Low</option><option value="medium">Balanced</option><option value="high">High</option></select></label>
           <label class="preference"><span>Camera motion and light flicker</span><input id="motion" type="checkbox"></label>
+          <label class="preference"><span>Directional footstep captions</span><input id="footstepCues" type="checkbox"></label>
         </section>
         <section class="dialog-card preferences-card">
           <h3>Audio &amp; controls</h3>
-          <label class="slider-label" for="volume">Volume</label><output id="volumeValue" for="volume"></output>
+          <label class="slider-label" for="volume">Master volume</label><output id="volumeValue" for="volume"></output>
           <input id="volume" type="range" min="0" max="1" step=".01">
+          <label class="slider-label" for="music">Music volume</label><output id="musicValue" for="music"></output>
+          <input id="music" type="range" min="0" max="1" step=".01">
           <label class="slider-label" for="sensitivity">Look sensitivity</label><output id="sensitivityValue" for="sensitivity"></output>
           <input id="sensitivity" type="range" min=".25" max="2.5" step=".025">
         </section>
@@ -208,7 +211,7 @@
           <dl class="controls-list"><dt>Interact / hide / use tool</dt><dd><kbd>E</kbd></dd><dt>Choose slot / drop</dt><dd><kbd>1–4</kbd> <kbd>G</kbd></dd><dt>Flashlight / journal</dt><dd><kbd>F</kbd> <kbd>Tab</kbd></dd><dt>Pause</dt><dd><kbd>Esc</kbd> <span>or</span> <kbd>P</kbd></dd></dl>
         </section>
       </div>
-      <div class="guide-tip"><svg aria-hidden="true"><use href="#flashIcon"/></svg><div><strong>Stay quiet</strong><p>Crouching muffles your footsteps. Drop a tool to draw her away, then retrieve it once she passes.</p></div></div>
+      <div class="guide-tip"><svg aria-hidden="true"><use href="#flashIcon"/></svg><div><strong>Stay quiet</strong><p>Crouch to muffle your steps or drop a tool to draw her away. Her nearby footsteps have directional captions you can turn off in Settings.</p></div></div>
       <footer class="dialog-footer"><span>On touch screens, drag to look and use the on-screen buttons.</span><button class="primary" data-back>Done</button></footer>
     </div>
   </dialog>
@@ -220,6 +223,10 @@
       <div class="touch-top"><button data-touch="journal">Journal</button><button data-touch="pause">Pause</button></div>
     </div>
     <div id="nightCard" class="night-card" aria-live="polite"><span class="eyebrow" id="chapterLabel"></span><strong id="chapterName"></strong></div>
+    <div id="footstepCue" class="footstep-cue" hidden>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10 5-5 5 5m-5-5v10" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span></span>
+    </div>
     <span id="reticle" aria-hidden="true"></span>
     <div id="prompt" class="prompt" hidden><kbd>E</kbd><span></span></div>
     <div id="mouseHint" class="mouse-hint" hidden>Click to capture the mouse, or hold and drag to look.</div>

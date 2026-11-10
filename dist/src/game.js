@@ -55,6 +55,7 @@ export function createGame(canvas,ui,settings) {
 
   function configure() {
     audio.setVolume(settings.volume);
+    audio.setMusic(settings.music);
     quality=settings.graphics;
     renderer.shadowMap.enabled=quality==='high';
     flashlight.castShadow=quality==='high';
@@ -86,10 +87,31 @@ export function createGame(canvas,ui,settings) {
     startFrames();lock();
   }
   function event(kind,data) {
-    if(kind==='sound')audio.play(data.kind,data.at);
+    if(kind==='sound') {
+      const player=sim.state.player;
+      audio.listen(player);
+      if(data.kind==='enemyStep')caretakerStep(player,data.at);
+      else audio.play(data.kind,data.at);
+    }
     if(kind==='toast')ui.toast(data);
     if(kind==='note')pause('note',data);
     if(kind==='caught')caught(data);
+  }
+  function caretakerStep(player,step) {
+    const dx=step.x-player.x,dz=step.z-player.z,distance=Math.hypot(dx,dz);
+    if(distance>=11)return;
+    const muffled=player.hidden!==null||!sim.nav.clear(player.x,player.z,step.x,step.z);
+    const pan=(dx*Math.cos(player.yaw)-dz*Math.sin(player.yaw))/(distance||1);
+    const front=(-dx*Math.sin(player.yaw)-dz*Math.cos(player.yaw))/(distance||1);
+    const range=muffled?7:11;
+    const gain=Math.max(0,1-distance/range)**1.4*(muffled?.48:1)*(front<-.71?.85:1);
+    if(gain<.027)return;
+    const stone=['Kitchen','Cellar'].includes(areaAt(step.x,step.z));
+    audio.footstep({...step,pan,gain,muffled,stone});
+    if(settings.footstepCues) {
+      const direction=Math.abs(pan)>Math.abs(front)?(pan<0?'left':'right'):(front<0?'behind':'ahead');
+      ui.footstep(direction,muffled);
+    }
   }
   function lock() {
     if(matchMedia('(pointer: coarse)').matches)return;
@@ -232,8 +254,9 @@ export function createGame(canvas,ui,settings) {
     world.power(s.progress.power);world.openGate(s.progress.handle);world.updateGate(dt);
     const brain=s.brain,a=brain.actor;
     rig.root.position.set(a.x,floorY(a.x,a.z),a.z);
-    rig.root.rotation.y+=Math.atan2(Math.sin(brain.heading-rig.root.rotation.y),Math.cos(brain.heading-rig.root.rotation.y))*Math.min(1,dt*17);
-    rig.animate(dt,time,mode==='caught'?0:brain.pace,brain.state,brain.gaze);
+    if(dt)rig.root.rotation.y+=Math.atan2(Math.sin(brain.heading-rig.root.rotation.y),Math.cos(brain.heading-rig.root.rotation.y))*Math.min(1,dt*17);
+    else rig.root.rotation.y=brain.heading;
+    rig.animate(dt,time,mode==='caught'?0:brain.pace,brain.state,brain.gaze,brain.stride);
   }
   function updateCamera(dt) {
     const p=sim.state.player;
@@ -296,14 +319,15 @@ export function createGame(canvas,ui,settings) {
         sprint=moving&&!s.tired&&!p.crouch&&(held.has('ShiftLeft')||held.has('ShiftRight'));
         if(moving)bob+=dt*(sprint?13.7:p.crouch?6.1:9.9);
         bobStrength=damp(bobStrength,moving?(sprint?.039:p.crouch?.013:.021):0,14,dt);
-        audio.update(dt,p,p.yaw,tension,sprint);
+        audio.listen(p);
+        audio.update(dt,tension,sprint,s.brain.state==='chase');
         ui.threat(s.brain.state,tension);ui.stamina(s.stamina,sprint);ui.hide(p.hidden!==null);ui.flash(s.flash);
         const progress=JSON.stringify(s.progress),inventory=s.inventory.join(',')+':'+s.selected;
         if(progress!==lastProgress){lastProgress=progress;ui.updateObjectives(s.progress);}
         if(inventory!==lastInventory){lastInventory=inventory;ui.updateInventory(s.inventory.map(i=>sim.world.objects[i]),s.selected);}
         if((randomSound-=dt)<=0) {
           randomSound=11+Math.random()*18;
-          audio.play(Math.random()<.63?'whisper':'door',{x:p.x-4+Math.random()*8,z:p.z-3+Math.random()*6});
+          audio.play(Math.random()<.63?'whisper':'settle',{x:p.x-4+Math.random()*8,z:p.z-3+Math.random()*6});
         }
         const area=areaAt(p.x,p.z);
         if(area!==previousArea){previousArea=area;ui.area(area);}

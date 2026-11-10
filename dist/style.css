@@ -82,6 +82,18 @@ kbd{display:inline-flex;min-height:23px;min-width:23px;padding:3px 6px;align-ite
 .night-card.reveal{animation:chapter 4.8s ease both}
 .night-card span{color:#e5c898}
 .night-card strong{display:block;font:400 clamp(28px,5vw,55px) var(--serif);margin-top:4px}
+.footstep-cue{
+  position:absolute;left:50%;top:clamp(70px,12vh,110px);transform:translateX(-50%);
+  display:flex;align-items:center;gap:8px;padding:5px 11px 5px 6px;width:max-content;
+  border:1px solid #ad8d5b80;background:#101514ed;color:#f0d4a8;
+  box-shadow:0 4px 18px #0007;font-size:.74rem;letter-spacing:.055em
+}
+.footstep-cue svg{width:21px;height:21px;padding:2px;border:1px solid #ad8d5b66;border-radius:50%}
+.footstep-cue[data-direction="left"] svg{transform:rotate(-90deg)}
+.footstep-cue[data-direction="right"] svg{transform:rotate(90deg)}
+.footstep-cue[data-direction="behind"] svg{transform:rotate(180deg)}
+.footstep-cue[data-muffled="true"]{border-style:dashed;color:#e1cead}
+@media(max-height:430px){.footstep-cue{top:15px}}
 @keyframes chapter{0%,100%{opacity:0}15%,65%{opacity:1}}
 #reticle{position:absolute;left:50%;top:50%;width:4px;height:4px;border:1px solid #eee0c9a0;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 3px #0b0b09}
 #reticle.focus{background:#e6c387;border-color:#e6c387}

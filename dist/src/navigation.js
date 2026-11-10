@@ -5,7 +5,8 @@ const gap=.5,cols=56,rows=52;
 let grid;
 
 export function navigation(world) {
-  const doorBlocks=new Set(world.doors.filter(d=>d.kind==='door'&&!d.secret).map(d=>d.blocker));
+  const normalDoors=world.doors.filter(d=>d.kind==='door'&&!d.secret);
+  const doorBlocks=new Set(normalDoors.map(d=>d.blocker));
   function blocked(x,z,r=.23,navigating=false) {
     if(x-r<bounds.x0||x+r>bounds.x1||z-r<bounds.z0||z+r>bounds.z1)return true;
     return world.solid.some(o=>{
@@ -14,10 +15,25 @@ export function navigation(world) {
       return dx*dx+dz*dz<r*r;
     });
   }
-  function clear(ax,az,bx,bz) {
+  function clear(ax,az,bx,bz,radius=.035,navigating=false) {
     const dx=bx-ax,dz=bz-az,steps=Math.ceil(Math.hypot(dx,dz)/.14);
-    for(let i=1;i<steps;i++)if(blocked(ax+dx*i/steps,az+dz*i/steps,.035))return false;
+    for(let i=1;i<steps;i++)if(blocked(ax+dx*i/steps,az+dz*i/steps,radius,navigating))return false;
     return true;
+  }
+  function doorAhead(x,z,dx,dz) {
+    let nearest=null,first=1;
+    for(const door of normalDoors) {
+      if(door.open)continue;
+      const acrossX=door.axis==='z',block=door.blocker;
+      const t=acrossX?(block.x-x)/dx:(block.z-z)/dz;
+      if(!(t>0&&t<=first))continue;
+      const offset=acrossX?z+dz*t-block.z:x+dx*t-block.x;
+      if(Math.abs(offset)>(acrossX?block.dz:block.dx)/2-.12)continue;
+      const approach=Math.max(0,t-.15/Math.hypot(dx,dz));
+      if(!clear(x,z,x+dx*approach,z+dz*approach))continue;
+      nearest=door;first=t;
+    }
+    return nearest;
   }
   function move(body,dx,dz,r=.23) {
     if(!blocked(body.x+dx,body.z,r))body.x+=dx;
@@ -81,8 +97,11 @@ export function navigation(world) {
     const route=[];
     for(let i=end;i!==start;i=parent[i])route.push(point(i));
     route.reverse();
-    if(!blocked(bx,bz,.28,true))route.push([bx,bz]);
+    if(!blocked(bx,bz,.28,true)&&clear(ex,ez,bx,bz,.23,true))route.push([bx,bz]);
+    const [sx,sz]=point(start);
+    const first=route[0];
+    if(first&&!clear(ax,az,...first,.23,true))route.unshift([sx,sz]);
     return route;
   }
-  return {blocked,clear,move,path};
+  return {blocked,clear,move,path,doorAhead};
 }

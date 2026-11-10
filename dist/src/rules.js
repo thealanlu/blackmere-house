@@ -1,7 +1,7 @@
 export const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 export function smoothstep(x,a,b){const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);}
 export const TICK=1/30;
-export const RUN_VERSION=1;
+export const RUN_VERSION=2;
 export const MAX_TICKS=30*60*25;
 export const levels={
   story:{label:'Story',caption:'Longer grace period and gentler pursuit.',walk:1.10,chase:2.22,vision:7.1,hearing:.75,grace:17,inspect:.32,points:1000},

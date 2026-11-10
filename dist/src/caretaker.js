@@ -295,7 +295,7 @@ export function createCaretaker() {
   line(poker,metal,[v3(0,-.62,0),v3(0,-.69,0),v3(.018,-.71,0),v3(.065,-.69,0)],.012);
   const head=buildHead(body);
   let stride=0,energy=0,attackTime=0,wasAttack=false,cloak=0;
-  function animate(dt,time,pace=0,mode='idle',gaze=0) {
+  function animate(dt,time,pace,mode,gaze,steps) {
     const damping=T.MathUtils.damp;
     energy=damping(energy,pace,6,dt);
     if(mode==='attack'){if(!wasAttack)attackTime=0;attackTime+=dt;}
@@ -303,7 +303,7 @@ export function createCaretaker() {
     wasAttack=mode==='attack';
     const attack=mode==='attack'?T.MathUtils.smoothstep(attackTime,0,.28):0;
     const strike=mode==='attack'?T.MathUtils.smoothstep(attackTime,.30,.56):0;
-    if(energy>.025)stride+=dt*(2.2+energy*10.2);
+    stride=dt?damping(stride,steps*PI,27,dt):steps*PI;
     const swing=sin(stride)*Math.min(energy,.99), twist=cos(stride)*energy;
     body.position.y=energy*(.008+.019*(1-cos(stride*2)))+sin(time*2.1)*.003;
     body.rotation.set(.026+energy*.10+strike*.12,swing*.072,twist*.033);
