@@ -94,6 +94,13 @@ export function bindMultiplayer({navigate,isOpen,social,game}) {
     voice:$(edit?'mpVoiceEdit':'mpVoiceRoom').checked
   });
   const rq=(op,data={})=>post(room?base+'/'+room.code:base,{op,...data});
+  function clearSeat() {
+    room=null;packet=null;pending='';friendRoom='';remember('');
+    $('mpRoom').hidden=true;
+  }
+  function checkAccount() {
+    if(room&&room.me!==social.profile?.id)clearSeat();
+  }
 
   function mutedUser(id) {
     if(muted.has(id))muted.delete(id);else muted.add(id);
@@ -132,6 +139,8 @@ export function bindMultiplayer({navigate,isOpen,social,game}) {
   function renderRoom(next) {
     room=next;
     remember(room.code);pending=room.code;
+    const url=new URL(location.href);
+    if(url.searchParams.has('room')){url.searchParams.delete('room');history.replaceState(null,'',url);}
     $('mpDirectory').hidden=true;$('mpGate').hidden=true;$('mpRoom').hidden=false;
     const lobby=room.phase==='lobby',playing=room.phase==='play',host=room.hostId===room.me;
     const own=room.members.find(m=>m.id===room.me),granny=room.mode==='pvp';
@@ -253,8 +262,7 @@ export function bindMultiplayer({navigate,isOpen,social,game}) {
     try {
       const result=await rq(data.op,data);
       if(data.op==='leave') {
-        room=null;packet=null;pending='';friendRoom='';remember('');
-        $('mpRoom').hidden=true;$('mpDirectory').hidden=false;await directory();
+        clearSeat();$('mpDirectory').hidden=false;await directory();
       } else renderRoom(result);
       return true;
     }catch(e){message(e.message,true);return false;}
@@ -291,14 +299,16 @@ export function bindMultiplayer({navigate,isOpen,social,game}) {
       if(room?.code===code&&!busy&&isOpen('multiplayer'))renderRoom(next);
     }catch(e) {
       if([401,403,404,409].includes(e.status)&&room?.code===code) {
-        room=null;packet=null;pending='';remember('');$('mpRoom').hidden=true;message(e.message,true);
+        clearSeat();message(e.message,true);
       }
     }finally{loading=false;}
   }
   async function open() {
     const generation=++opening;
+    checkAccount();
     await social.session();
     if(!isOpen('multiplayer')||generation!==opening)return;
+    checkAccount();
     if(!online()) {
       $('mpGate').hidden=false;$('mpDirectory').hidden=true;$('mpRoom').hidden=true;
       return;
@@ -332,7 +342,7 @@ export function bindMultiplayer({navigate,isOpen,social,game}) {
     navigate('multiplayer');
   }
   function closed(text) {
-    room=null;packet=null;pending='';remember('');
+    clearSeat();
     game()?.closeMatch();
     navigate('multiplayer');message(text,true);
   }
