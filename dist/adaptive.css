@@ -158,3 +158,22 @@ html[data-controls="touch"] .hud:has(.mp-hud:not([hidden])) .footstep-cue{top:ca
   html[data-controls="touch"] .hud:has(.mp-hud:not([hidden])) .footstep-cue{top:calc(79px + var(--safe-top))}
   .rotate-hint{display:none!important}
 }
+
+.battery-hud{gap:6px;font-size:.67rem;align-items:center;text-shadow:0 1px 4px #000}
+.battery-hud span{display:inline}
+#touchLight{pointer-events:auto;touch-action:none;min-width:44px;min-height:44px}
+.battery-hud svg{width:17px;height:17px}
+.battery-meter{width:62px;height:3px;margin-top:4px;background:#e3c69330}
+.battery-meter i{display:block;height:100%;background:#d7c69f}
+.battery-hud[data-status="low"] .battery-meter i{background:#e2ab69}
+.battery-hud[data-status="critical"]{color:#f3b29d}
+.battery-hud[data-status="critical"] .battery-meter i{background:#f3997c}
+.map-head button:disabled{opacity:.5;pointer-events:none}
+html[data-controls="touch"] .battery-hud:not([hidden]){
+  display:flex;position:absolute;right:0;bottom:46px;padding:4px 7px;border:1px solid #b99a6b55;
+  border-radius:4px;background:#111815e0
+}
+@media(orientation:portrait){
+  html[data-controls="touch"] .toast{bottom:calc(265px + var(--safe-bottom))}
+}
+html[data-nightmare="true"] .rotate-hint{left:50%;right:auto;transform:translateX(-50%);max-width:calc(100% - 35px)}

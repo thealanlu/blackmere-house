@@ -32,7 +32,11 @@ On a touch device, use the virtual joystick to move, drag the scene to look, and
 
 Check the journal for both escape routes. Drawers and cupboards can hold tools, and item locations vary by run. Items and escape progress carry over after capture. Difficulty is chosen at the start of a run. Use **Save & Exit** to keep one unranked solo checkpoint. The game also keeps local checkpoints during play. When signed in and online, **Save & Exit** uploads the checkpoint to your account so another device can open it under **Single Player → Continue Solo Save**. Verified runs stay tied to their original session.
 
-The top-left minimap shows the real floor plan, door states, and nearby teammates. Use **M**, D-pad Left, or its floor button to switch between the ground floor and lower cellar. A red pulse lasts five seconds at each door Granny opens. New passage doors connect the bedroom to the music room, the music room to the study, and the kitchen to the cellar landing.
+The mansion has four levels. Take either east staircase from the ground floor to the library and east bedrooms, then use either stairway into the attic. The basement contains the boiler room and storm drain. In Easy, Normal, and Hard, use **M**, D-pad Left, or the floor button to cycle through visited maps. A red pulse lasts five seconds at each door Granny opens. Teal arrows indicate nearby teammates above or below the displayed level.
+
+**Nightmare** removes the map, map markers, and directional Granny captions in solo, co-op, and PvP. Granny reacts faster, the house is darker, key items can appear upstairs, and the front door and drain require extra parts. Valid hiding spots still protect you.
+
+The flashlight lasts eight minutes in Easy, Normal, and Hard and four and a half minutes in Nightmare. Press **F** or tap **Light** to toggle it. Press **R**, hold **Light**, or use controller right trigger + X to fit a spare. A Survivor can carry two spares. Select one and drop it to share with a teammate.
 
 Use **E** or the contextual action to get into or out of cover. You can look through the wardrobe gap, under the bed, around the drawing-room sofa, or out of the coal recess. Granny can search nearby while you watch. The game keeps you concealed until you have fully exited.
 

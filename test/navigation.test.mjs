@@ -27,12 +27,12 @@ function stepRoom(room,seat,actionCode,elapsed=34) {
   advanceMatch(room,now);
 }
 
-test('the physical mansion has ten routes and stays connected when an interior door is bolted',()=>{
-  assert.deepEqual(validateMansion(),{rooms:7,routes:10,hiding:7});
+test('the physical mansion has twenty-four routes and stays connected when an interior door is bolted',()=>{
+  assert.deepEqual(validateMansion(),{rooms:14,routes:24,hiding:9});
   assert.equal(floorAt(4,-9),'main');assert.equal(floorAt(10,-9),'cellar');
 });
 
-test('all seven hiding spots have usable entrances, bounded aim and an authoritative safe exit',()=>{
+test('all nine hiding spots have usable entrances, bounded aim and an authoritative safe exit',()=>{
   const source=createSimulation(1,'normal');
   for(const spec of source.world.hiding) {
     const events=[],sim=createSimulation(1,'normal',null,(kind,data)=>events.push({kind,data}));

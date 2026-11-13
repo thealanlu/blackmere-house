@@ -1,15 +1,16 @@
 import assert from 'node:assert/strict';
 import level from '../dist/src/level-data.js';
 import {areaAt,areas,bounds,SPAWN} from '../dist/src/rules.js';
+import {stairs,wingRooms} from '../dist/src/floors.js';
 import {createSimulation} from '../dist/src/simulation.js';
 
 export function validateMansion() {
   const {nav,world}=createSimulation(100,'normal');
-  const rooms=[...areas.map(([name])=>name),'Grand Hall'];
+  const rooms=[...areas.map(([name])=>name),'Grand Hall','Boiler Room',...wingRooms.map(r=>r.name)];
   const edges=[];
   for(const portal of level.passages) {
     const object=world.objects[portal.index];
-    if(object?.kind==='front'||portal.name==='Drain Exit')continue;
+    if(object?.kind==='front'||portal.name==='Drain Exit'||!object&&portal.name.includes('Stair'))continue;
     const dx=portal.axis==='z'?.63:0,dz=portal.axis==='x'?.63:0;
     const from=[portal.x-dx,portal.z-dz],to=[portal.x+dx,portal.z+dz];
     assert.ok(!nav.blocked(...from)&&!nav.blocked(...to),portal.name+' has a blocked approach');
@@ -22,6 +23,12 @@ export function validateMansion() {
     } else assert.ok(crossed(),portal.name+' must be traversable');
     if(!object?.secret)edges.push({from,to,rooms:[areaAt(...from),areaAt(...to)],object,name:portal.name});
   }
+  for(const stair of stairs.filter(s=>!s.secret)) {
+    const {x0,x1,z}=stair,from=[x0-.45,z],to=[x1+.45,z];
+    assert.ok(!nav.blocked(...from)&&!nav.blocked(...to)&&nav.clear(...from,...to,.23),'Stair corridor is blocked');
+    assert.ok(nav.path(...from,...to).length,'Stair is unavailable to Granny');
+    edges.push({from,to,rooms:[areaAt(...from),areaAt(...to)],name:stair.from+' to '+stair.to});
+  }
   function graph(exclude) {
     const adjacency=new Map(rooms.map(room=>[room,new Set()]));
     for(const edge of edges) {
@@ -32,8 +39,8 @@ export function validateMansion() {
     }
     return adjacency;
   }
-  for(const [room,neighbors] of graph())assert.ok(neighbors.size>=2,room+' needs two independent routes');
-  for(const closed of [null,...edges.filter(edge=>edge.object)]) {
+  for(const room of rooms)assert.ok(edges.filter(edge=>edge.rooms.includes(room)).length>=2,room+' needs two usable entrances');
+  for(const closed of [null,...edges]) {
     const connected=graph(closed),visited=new Set(['Grand Hall']),queue=['Grand Hall'];
     for(const room of queue)for(const next of connected.get(room))if(!visited.has(next)){visited.add(next);queue.push(next);}
     assert.equal(visited.size,rooms.length,'Mansion disconnected with '+(closed?.name??'ordinary routes')+' closed');
@@ -68,6 +75,16 @@ export function validateMansion() {
   for(const spot of world.hiding) {
     assert.ok(!nav.blocked(...spot.exit)&&reached.has(closest(spot.exit)),spot.name+' has no safe way out');
     assert.ok(!nav.blocked(...spot.peek,.035),spot.name+' has a blocked sight opening');
+  }
+  for(const item of world.items)for(const raw of [
+    ...level.itemSpots[item.spawn??item.id],...(level.nightmareSpots[item.id]??[])
+  ]) {
+    const entry=typeof raw==='number'?world.objects[raw]:raw;
+    const usable=Array.from({length:24},(_,i)=>{
+      const angle=i*Math.PI/12;
+      return [entry.x+1.25*Math.cos(angle),entry.z+1.25*Math.sin(angle)];
+    }).some(at=>reached.has(closest(at)));
+    assert.ok(usable,item.name+' has an unreachable spawn');
   }
   return {rooms:rooms.length,routes:edges.length,hiding:world.hiding.length};
 }

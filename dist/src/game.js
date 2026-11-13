@@ -1,7 +1,7 @@
 import * as T from '../vendor/three.module.js';
 import { createWorld } from './world.js';
 import { createCaretaker } from './caretaker.js';
-import { floorY, areaAt, smoothstep, TICK } from './rules.js';
+import { floorY, areaAt, smoothstep, TICK, hasMap, floorAt } from './rules.js';
 import { CHECKPOINT_VERSION } from './checkpoint.js';
 import { createSimulation, moveSurvivor, key, action } from './simulation.js';
 import { createAudio } from './audio.js';
@@ -40,6 +40,10 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
   flashlight.shadow.mapSize.set(768,768);flashlight.shadow.bias=-.00017;flashlight.shadow.normalBias=.028;
   flashlight.shadow.camera.near=.06;flashlight.shadow.camera.far=23;
   const fill=new T.PointLight(0xd5bea4,1.2,4,1.65);fill.position.set(-.08,-.19,-.29);camera.add(fill);
+  const remoteBeams=Array.from({length:3},()=>{
+    const light=new T.SpotLight(0xffe3bb,0,16,Math.PI*.22,.72,1.65);
+    scene.add(light,light.target);return light;
+  });
   const lampPool=Array.from({length:5},()=>{const l=new T.PointLight(0xffffff,0,8,1.75);scene.add(l);return l;});
   const dustData=[];
   const rand=rng(711);
@@ -54,10 +58,15 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
   const dust=new T.Points(dustGeo,new T.PointsMaterial({color:0xc3b8a0,map:new T.CanvasTexture(dustTex),size:.042,transparent:true,opacity:.32,depthWrite:false,blending:T.AdditiveBlending}));
   scene.add(dust);
   const world=createWorld(scene);
-  const map=mansionMap({
-    canvas:document.querySelector('#mansionMap'),floorLabel:document.querySelector('#mapFloor'),
-    button:document.querySelector('#mapSwitch'),notice:document.querySelector('#mapNotice')
-  },settings);
+  const mapTemplate=document.querySelector('#mapTemplate'),mapMount=document.querySelector('#mapMount');
+  let map=null;
+  function setupMap(enabled) {
+    map=null;mapMount.replaceChildren();
+    if(!enabled)return;
+    mapMount.append(mapTemplate.content.cloneNode(true));
+    const get=id=>mapMount.querySelector('#'+id);
+    map=mansionMap({canvas:get('mansionMap'),floorLabel:get('mapFloor'),button:get('mapSwitch'),notice:get('mapNotice')},settings);
+  }
   const rig=createCaretaker();scene.add(rig.root);
   const remotes=new Map(),traps=new T.Group();
   const snareGeo=new T.TorusGeometry(.19,.019,6,20),snareMat=new T.MeshStandardMaterial({color:0x745344,metalness:.64,roughness:.71});
@@ -115,6 +124,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
   function clearInput(){held.clear();joystick.reset();gyro.reset();dragging=false;touchLook=null;pending=0;slot=-1;lookX=0;lookY=0;accumulator=0;lastKeys=0;}
   function begin(attempt=null,saved=null) {
     audio.init();ranked=attempt;solo=!attempt;difficulty=attempt?.difficulty??saved?.difficulty??settings.difficulty;
+    setupMap(hasMap(difficulty));ui.difficulty(difficulty);
     transition++;time=0;
     for(const d of world.doors){d.angle=0;d.pivot.rotation.y=0;}
     world.openGate(false);
@@ -135,7 +145,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
   }
   function beginMatch(link) {
     audio.init();solo=false;online=link;netState=null;netKeys=0;transition++;time=0;previousArea='';
-    map.reset();lastCover=null;hideEntry=null;
+    setupMap(false);lastCover=null;hideEntry=null;
     clearInput();mode='play';audio.enable(true);ui.show('play');ui.matchConnection('Connecting to the house…');
     link.start(receiveMatch,text=>ui.matchConnection(text));
     lock();
@@ -149,13 +159,15 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     }
     const s=packet.me,body=packet.watch?.body??s.body;
     if(!previous) {
-      sim=createSimulation(0,packet.difficulty);
+      difficulty=packet.difficulty;
+      setupMap(hasMap(difficulty));ui.difficulty(difficulty);
+      sim=createSimulation(0,difficulty);
       for(const d of world.doors){d.angle=0;d.pivot.rotation.y=0;}
       ui.night(1,packet.mode==='pvp'?'Survivors vs. Granny':'Co-op Escape');
     }
     const state=sim.state,p=state.player;
-    state.progress=packet.progress;state.inventory=s.inventory;state.selected=s.selected;
-    state.flash=packet.watch?.flash??s.flash;state.stamina=s.stamina;state.tired=s.tired;
+    state.progress=packet.progress;state.inventory=packet.watch?.inventory??s.inventory;state.selected=s.selected;
+    state.flash=packet.watch?.flash??s.flash;state.charge=packet.watch?.charge??s.charge;state.stamina=s.stamina;state.tired=s.tired;
     if(packet.world)sim.restoreWorld(packet.world);
     const snapped=!previous||previous.me.status!==s.status||previous.watch?.name!==packet.watch?.name||p.hidden!==body.hidden||
       Math.hypot(p.x-body.x,p.z-body.z)>1.35;
@@ -174,7 +186,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     if(body.hideExit){p.hideExit=body.hideExit;p.hideLeave=body.hideLeave;}
     else {delete p.hideExit;delete p.hideLeave;}
     if(p.hidden!==null)p.eye=body.eye;
-    for(const [door,opened] of packet.doorAlerts??[])map.alert(door,packet.clock-opened,opened);
+    for(const [door,opened] of packet.doorAlerts??[])map?.alert(door,packet.clock-opened,opened);
     audio.listen(p);
     for(const event of packet.events)playMatchEvent(event);
     if(!previous){syncWorld(0);syncHUD();updateCamera(0);startFrames();}
@@ -203,7 +215,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     return Math.abs(pan)>Math.abs(front)?(pan<0?'left':'right'):(front<0?'behind':'ahead');
   }
   function caption(kind,player,at) {
-    if(!settings.footstepCues||!at||!soundLabels[kind])return;
+    if(!settings.footstepCues||!at||!soundLabels[kind]||!hasMap(difficulty)&&kind==='door')return;
     const distance=Math.hypot(at.x-player.x,at.z-player.z);
     if(distance<.35||distance>7)return;
     const muffled=!sim.nav.clear(player.x,player.z,at.x,at.z);
@@ -211,7 +223,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
   }
   function startNight() {
     attacker=null;randomSound=8;bob=0;bobStrength=0;previousArea='';clearInput();
-    map.reset();lastCover=null;hideEntry=null;
+    map?.reset();lastCover=null;hideEntry=null;
     mode='play';audio.enable(true);
     ui.show('play');ui.night(sim.state.day,chapters[sim.state.day-1]);
     syncWorld(0);syncHUD();updateCamera(0);
@@ -226,7 +238,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
       else {audio.play(data.kind,data.at);caption(data.kind,player,data.at);}
     }
     if(kind==='toast'){ui.toast(data);pulse(14);}
-    if(kind==='grannyDoor')map.alert(data.door);
+    if(kind==='grannyDoor')map?.alert(data.door);
     if(kind==='note')pause('note',data);
     if(kind==='caught')caught(data);
   }
@@ -239,9 +251,9 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     const range=muffled?7:11;
     const gain=Math.max(0,1-distance/range)**1.4*(muffled?.48:1)*(front<-.71?.85:1);
     if(gain<.027)return;
-    const stone=['Kitchen','Cellar'].includes(areaAt(step.x,step.z));
+    const stone=['Kitchen','Cellar','Boiler Room'].includes(areaAt(step.x,step.z));
     audio.footstep({...step,pan,gain,muffled,stone});
-    if(settings.footstepCues) {
+    if(settings.footstepCues&&hasMap(difficulty)) {
       ui.footstep(soundDirection(player,step),muffled);
     }
   }
@@ -310,7 +322,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     if(mode!=='interlude')return;
     applyInput([0,0,0,action.wake,-1]);startNight();
   }
-  const actionKeys={KeyE:action.use,KeyG:action.drop,KeyC:action.crouch,ControlLeft:action.crouch,ControlRight:action.crouch,KeyF:action.light};
+  const actionKeys={KeyE:action.use,KeyG:action.drop,KeyC:action.crouch,ControlLeft:action.crouch,ControlRight:action.crouch,KeyF:action.light,KeyR:action.reload};
   const matchKeys={KeyQ:skill.trap,KeyX:skill.bolt};
   function pulse(pattern) {
     if(settings.haptics&&ui.controlKind()==='touch')navigator.vibrate?.(pattern);
@@ -323,7 +335,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     if(e.repeat)return;
     if(e.code==='Escape'||e.code==='KeyP')pause();
     if(e.code==='Tab')pause('journal');
-    if(e.code==='KeyM')map.toggle();
+    if(e.code==='KeyM')map?.toggle();
     if(actionKeys[e.code])pending|=actionKeys[e.code];
     if(online&&matchKeys[e.code])pending|=matchKeys[e.code];
     if(/^Digit[1-4]$/.test(e.code))slot=Number(e.code.at(-1))-1;
@@ -373,6 +385,19 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     else held.add(k);
     if(actionKeys[k]||matchKeys[k])pulse(10);
   }
+  const flashlightButton=document.querySelector('#touchLight');
+  let pressLight=0;
+  flashlightButton.addEventListener('pointerdown',e=>{
+    e.preventDefault();if(mode!=='play')return;
+    ui.control('touch');flashlightButton.setPointerCapture(e.pointerId);
+    pressLight=performance.now();
+  });
+  flashlightButton.addEventListener('pointerup',e=>{
+    if(pressLight&&mode==='play')touchAction(performance.now()-pressLight>440?'KeyR':'KeyF');
+    pressLight=0;
+  });
+  flashlightButton.addEventListener('pointercancel',()=>{pressLight=0;});
+  flashlightButton.addEventListener('click',e=>{if(e.detail===0&&mode==='play')touchAction('KeyF');});
   for(const b of document.querySelectorAll('[data-touch]')) {
     b.addEventListener('pointerdown',e=>{
       e.preventDefault();if(mode!=='play')return;
@@ -397,10 +422,10 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     const p=padButtons;
     if(edge(p.pause)||edge(p.back))pause();
     else if(edge(p.journal))pause('journal');
-    if(edge(14))map.toggle();
+    if(edge(14))map?.toggle();
     if(edge(p.use))pending|=action.use;
     if(edge(p.crouch))pending|=action.crouch;
-    if(edge(p.light))pending|=action.light;
+    if(edge(p.light))pending|=pressed[p.sprint]?action.reload:action.light;
     if(edge(p.drop))pending|=action.drop;
     if(online&&edge(p.trap))pending|=skill.trap;
     if(online&&edge(p.bolt))pending|=skill.bolt;
@@ -430,7 +455,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
   function syncHUD(sprint=false) {
     const s=sim.state,p=s.player;
     ui.updateInventory(s.inventory.map(i=>sim.world.objects[i]),s.selected);
-    ui.updateObjectives(s.progress);ui.stamina(s.stamina,sprint);ui.flash(s.flash);
+    ui.updateObjectives(s.progress,difficulty);ui.stamina(s.stamina,sprint);ui.flash(s.flash,s.charge,s.inventory.filter(i=>sim.world.objects[i].id==='battery').length,netState?.me.role==='granny');
     ui.hide(sim.world.objects[p.hidden]?.type);
   }
   function syncWorld(dt) {
@@ -450,6 +475,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     }
     world.power(s.progress.power);world.openGate(s.progress.handle);world.updateGate(dt);world.updateContainers(dt);
     if(online){syncAvatars(dt);return;}
+    for(const beam of remoteBeams)beam.intensity=0;
     const brain=s.brain,a=brain.actor;
     rig.root.position.set(a.x,floorY(a.x,a.z),a.z);
     if(dt)rig.root.rotation.y+=Math.atan2(Math.sin(brain.heading-rig.root.rotation.y),Math.cos(brain.heading-rig.root.rotation.y))*Math.min(1,dt*17);
@@ -468,6 +494,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
       rig.animate(dt,time,granny?.pace??ai.pace,granny?(granny.attack?'attack':'patrol'):ai.state,ai?.gaze??0,granny?.stride??ai.stride);
     }
     const present=new Set();
+    let beams=0;
     for(const avatar of packet.avatars) {
       if(avatar.role!=='survivor')continue;
       let model=remotes.get(avatar.id);
@@ -478,7 +505,15 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
       }
       poseAt(model.root,avatar,avatar.yaw+Math.PI,dt);
       model.pose(avatar,time,dt);present.add(avatar.id);
+      if(avatar.flash&&beams<remoteBeams.length) {
+        const beam=remoteBeams[beams++],{x,z,yaw,pitch}=avatar;
+        model.flashlight.getWorldPosition(beam.position);
+        beam.target.position.set(beam.position.x-5*Math.sin(yaw),beam.position.y+5*Math.sin(pitch),beam.position.z-5*Math.cos(yaw));
+        beam.distance=sim.nav.beamReach(x,z,yaw,16);
+        beam.intensity=32;
+      }
     }
+    for(let i=beams;i<remoteBeams.length;i++)remoteBeams[i].intensity=0;
     for(const [id,model] of remotes) {
       if(!present.has(id)){scene.remove(model.root);remotes.delete(id);}
     }
@@ -560,9 +595,13 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
   }
   function updateLighting(dt) {
     const player=sim.state.player,nav=sim.nav;
+    const floor=floorAt(player.x,player.z),nightmare=!hasMap(difficulty),charge=sim.state.charge;
+    const [lightX,lightZ]=sim.world.objects[player.hidden]?.peek??[player.x,player.z];
+    const darkness=(nightmare?.72:1)*(floor==='attic'?.76:floor==='cellar'?.82:1);
+    ambient.intensity=.76*darkness;
     if(Math.hypot(player.x-lastLightPos[0],player.z-lastLightPos[1])>1.3) {
       lastLightPos=[player.x,player.z];
-      const dist=l=>Math.hypot(l.x-player.x,l.z-player.z)+(nav.clear(l.x,l.z,player.x,player.z)?0:3.2);
+      const dist=l=>Math.hypot(l.x-player.x,l.z-player.z)+(nav.clear(l.x,l.z,lightX,lightZ)?0:3.2);
       activeLights=world.lights.map(light=>[dist(light),light]).sort((a,b)=>a[0]-b[0])
         .slice(0,quality.lamps).map(([,light])=>light);
     }
@@ -570,16 +609,20 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
       const src=activeLights[i],l=lampPool[i];if(!src)continue;
       l.position.set(src.x,src.y,src.z);l.color.setHex(src.color);
       const flicker=settings.motion&&src.flicker?1-Math.pow(Math.max(0,Math.sin(time*4+src.flicker)*Math.cos(time*15+src.flicker)),7)*.55:1;
-      const spill=nav.clear(src.x,src.z,player.x,player.z)?1:.21;
-      l.intensity=damp(l.intensity,src.power*flicker*spill,8,dt);
+      const spill=nav.clear(src.x,src.z,lightX,lightZ)?1:.21;
+      l.intensity=damp(l.intensity,src.power*flicker*spill*darkness,8,dt);
     }
     const a=online?(netState.ai?.actor??netState.avatars.find(p=>p.role==='granny')):sim.state.brain.actor;
     const dx=a?a.x-player.x:99,dz=a?a.z-player.z:99,distance=Math.hypot(dx,dz);
     const facing=(-Math.sin(cameraYaw)*dx-Math.cos(cameraYaw)*dz)/(distance||1);
     const close=distance<3&&facing>.66&&nav.clear(player.x,player.z,a.x,a.z);
     const beam=close?clamp(.047+.095*distance*distance,.105,1):1;
-    flashlight.intensity=damp(flashlight.intensity,(sim.state.flash&&player.hidden===null?48:mode==='caught'?31:0)*beam,17,dt);
-    fill.intensity=player.hidden!==null?.26:1.25;
+    const active=sim.state.flash&&player.hidden===null;
+    const pulse=settings.motion&&charge>0&&charge<=.1&&time%7.3>7.15?.26:1;
+    flashlight.distance=active?nav.beamReach(player.x,player.z,cameraYaw):19;
+    flashlight.intensity=damp(flashlight.intensity,(active?48*pulse:mode==='caught'?31:0)*beam,17,dt);
+    flashlight.position.y=-.15+(settings.motion?Math.sin(bob)*bobStrength*.57:0);
+    fill.intensity=(player.hidden!==null?.41:1.25)*darkness;
     dust.position.y=Math.sin(time*.47)*.21;
   }
   function startFrames(){if(!raf){lastFrame=performance.now();nextFrame=lastFrame;raf=requestAnimationFrame(frame);}}
@@ -614,19 +657,21 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
         audio.listen(p);
         const threat=online?netState.ai?.state??'patrol':s.brain.state;
         audio.update(dt,tension,sprint,threat==='chase'||Boolean(online&&tension>.70),p.hidden!==null);
-        ui.threat(threat,tension);ui.stamina(s.stamina,sprint);ui.hide(sim.world.objects[p.hidden]?.type);ui.flash(s.flash);
+        ui.threat(threat,tension);ui.stamina(s.stamina,sprint);ui.hide(sim.world.objects[p.hidden]?.type);ui.flash(s.flash,s.charge,s.inventory.filter(i=>sim.world.objects[i].id==='battery').length,netState?.me.role==='granny');
         const progress=JSON.stringify(s.progress),inventory=s.inventory.join(',')+':'+s.selected;
-        if(progress!==lastProgress){lastProgress=progress;ui.updateObjectives(s.progress);}
+        if(progress!==lastProgress){lastProgress=progress;ui.updateObjectives(s.progress,difficulty);}
         if(inventory!==lastInventory){lastInventory=inventory;ui.updateInventory(s.inventory.map(i=>sim.world.objects[i]),s.selected);}
         if(!online&&(randomSound-=dt)<=0) {
           randomSound=11+Math.random()*18;
-          const kind=Math.random()<.63?'whisper':'settle',at={x:p.x-4+Math.random()*8,z:p.z-3+Math.random()*6};
+          const floor=floorAt(p.x,p.z);
+          const whisper=floor==='attic'?.87:floor==='upper'?.22:floor==='cellar'?0:.63;
+          const kind=Math.random()<whisper?'whisper':'settle',at={x:p.x-4+Math.random()*8,z:p.z-3+Math.random()*6};
           audio.play(kind,at);caption(kind,p,at);
         }
         const area=areaAt(p.x,p.z);
         if(area!==previousArea){previousArea=area;ui.area(area);}
         if((hudTick-=dt)<=0){hudTick=.052;ui.prompt(online?matchPrompt(p):sim.prompt());}
-        map.draw(p,sim,netState,dt);
+        map?.draw(p,sim,netState,dt);
       }
     }
     syncWorld(dt);updateCamera(dt);updateLighting(dt);

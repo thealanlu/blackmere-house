@@ -48,6 +48,7 @@ export function survivorModel(index) {
   if(index%4===1)oval(head,hair,0,.13,-.126,.079,.087,.057);
   if(index%4===3)oval(head,hair,0,.024,.047,.093,.042,.062);
   const legs=[],arms=[];
+  let lens;
   for(const side of [-1,1]) {
     const leg=pivot(body,side*.12,.93,0);
     const knee=pivot(leg,0,-.43,0),ankle=pivot(knee,0,-.43,0);
@@ -59,11 +60,16 @@ export function survivorModel(index) {
     oval(arm,coat,side*.026,-.19,0,.086,.229,.088);
     oval(arm,coat,side*.037,-.45,.029,.073,.165,.076);
     oval(arm,skin,side*.039,-.586,.039,.059,.082,.059);
-    if(side===1)block(arm,0x232522,.040,-.575,.086,.077,.070,.17);
+    if(side===1) {
+      block(arm,0x232522,.040,-.575,.086,.077,.070,.17);
+      lens=block(arm,0xe9d5aa,.040,-.575,.178,.061,.052,.016);
+      lens.visible=false;
+    }
   }
-  return {root,detail(low){
+  return {root,flashlight:lens,detail(low){
     root.traverse(node=>{if(node.geometry===sphere||node.geometry===compactSphere)node.geometry=low?compactSphere:sphere;});
   },pose(pose,time,dt) {
+    lens.visible=Boolean(pose.flash);
     const damp=T.MathUtils.damp;
     const kneel=pose.status==='captured',crouch=pose.crouch||kneel;
     const bend=kneel?1.14:crouch?.92:(pose.emerging??0)*.82;

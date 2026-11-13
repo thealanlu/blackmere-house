@@ -79,7 +79,7 @@ async function changeRoom(db,code,operation) {
     if(!row||row.touched<now-maxAge)fail(404,'This room is closed.');
     const room=JSON.parse(row.state);
     if(room.version!==MATCH_VERSION) {
-      if(room.phase==='play'||room.version!==MATCH_VERSION-1)fail(409,'This match used the previous mansion layout. Start a new match.');
+      if(room.phase==='play'||![1,2].includes(room.version))fail(409,'This match used the previous mansion layout. Start a new match.');
       room.version=MATCH_VERSION;
     }
     const result=await operation(room,now);
@@ -319,7 +319,7 @@ export async function exchange(request,env,code) {
   if(d.version!==MATCH_VERSION)fail(409,'Reload the game to connect.');
   if(typeof d.ticket!=='string'||!uuidPattern.test(d.ticket)||typeof d.game!=='string'||!uuidPattern.test(d.game)||
     !valid(d.seq,0,100_000)||!valid(d.keys,0,31)||!valid(d.yaw,-3142,3142)||!valid(d.pitch,-1430,1430)||
-    !valid(d.actions,0,111)||(d.actions&16)||!valid(d.slot,-1,3)||!valid(d.after,0,100_000)||
+    !valid(d.actions,0,239)||(d.actions&16)||!valid(d.slot,-1,3)||!valid(d.after,0,100_000)||
     (d.worldVersion!==undefined&&!valid(d.worldVersion,0,100_000)))fail(400,'Invalid match input.');
   const db=env.DB;
   const room=await changeRoom(db,code,(r,now)=>{

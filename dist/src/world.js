@@ -2,8 +2,9 @@ import * as T from '../vendor/three.module.js';
 import { mat, materials as m, rng } from './materials.js';
 
 import {floorY,itemInfo} from './rules.js';
+import {stairs,stairWidth,wingRooms} from './floors.js';
 
-export function createWorld(scene,{legacy=false}={}) {
+export function createWorld(scene,{legacy=false,expanded=!legacy}={}) {
   const solid=[], doors=[], objects=[], lights=[], hiding=[], items=[], staticShapes=new Map();
   const walls=[],passages=[],extraDoors=[];
   const rngWorld=rng(83415);
@@ -31,14 +32,14 @@ export function createWorld(scene,{legacy=false}={}) {
     for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*u,uv.getY(i)*v);
     const o=new T.Mesh(geo,material);o.position.set(x,y,z);o.rotation.set(rx,ry,0,'YXZ');o.receiveShadow=true;w.add(o);
   }
-  function panel(axis,fixed,a,b,kind) {
+  function panel(axis,fixed,a,b,kind,base=0) {
     if(b-a<.02)return;
     const horiz=axis==='x', center=(a+b)/2, length=b-a;
     const basement=kind==='stone';
     const x=horiz?center:fixed,z=horiz?fixed:center;
     walls.push({x,z,dx:horiz?length:.22,dz:horiz?.22:length});
-    const bottom=basement?-1.19:0;
-    const h=3.38-bottom;
+    const bottom=basement?base-1.19:base;
+    const h=base+3.38-bottom;
     obstacle(x,z,horiz?length:.22,horiz?.22:length);
     box(x,bottom+h/2,z,horiz?length:.19,h,horiz?.19:length,basement?m.stone:m.trim);
     for(const sign of [-1,1]) {
@@ -47,13 +48,13 @@ export function createWorld(scene,{legacy=false}={}) {
       surface(horiz?x:x+off,bottom+h/2,horiz?z+off:z,length,h,basement?m.stone:m.wall,length/2.35,h/3.4,0,side);
     }
     if(basement)return;
-    box(x,.535,z,horiz?length:.255,1.07,horiz?.255:length,m.darkWood);
+    box(x,base+.535,z,horiz?length:.255,1.07,horiz?.255:length,m.darkWood);
     for(const [y,d] of [[.08,.14],[.99,.12],[1.08,.045],[3.29,.13],[3.18,.044]]) {
-      box(x,y,z,horiz?length:.32,d,horiz?.32:length,m.trim);
+      box(x,base+y,z,horiz?length:.32,d,horiz?.32:length,m.trim);
     }
     for(let p=a+.55;p<b-.32;p+=.95) {
       for(const sign of [-1,1]) {
-        box(horiz?p:fixed+sign*.13,.54,horiz?fixed+sign*.13:p,horiz?.69:.026,.60,horiz?.026:.69,m.wood);
+        box(horiz?p:fixed+sign*.13,base+.54,horiz?fixed+sign*.13:p,horiz?.69:.026,.60,horiz?.026:.69,m.wood);
       }
     }
   }
@@ -110,22 +111,23 @@ export function createWorld(scene,{legacy=false}={}) {
     else {doors.push(d);objects.push(d);}
     return d;
   }
-  function partition(axis,fixed,a,b,openings=[],kind) {
+  function partition(axis,fixed,a,b,openings=[],kind,base=0) {
     let p=a;
     for(const [center,opt] of openings) {
       const width=opt.width??1.52;
-      panel(axis,fixed,p,center-width/2,kind);
-      doorway(axis,fixed,center,opt);
+      panel(axis,fixed,p,center-width/2,kind,base);
+      doorway(axis,fixed,center,{bottom:base,...opt});
       p=center+width/2;
     }
-    panel(axis,fixed,p,b,kind);
+    panel(axis,fixed,p,b,kind,base);
   }
   const bookColors=[mat(0x59463a),mat(0x383f36),mat(0x67483b),mat(0x4c504b),mat(0x403536),mat(0x665b44)];
   partition('x',-13,-14,14);
   partition('x',13,-14,14,[[0,{name:'Front Door',exit:true,width:1.85}]]);
   partition('z',-14,-13,13);
   partition('z',14,-13,-5,[[-8.9,{name:'Drain Exit',openPassage:true,width:1.67,bottom:-1.15,metal:true}]],'stone');
-  partition('z',14,-5,13);
+  partition('z',14,-5,13,expanded?[[-2.5,{name:'Kitchen Stair Arch',openPassage:true,width:stairWidth}],
+    [8,{name:'Drawing Room Stair Arch',openPassage:true,width:stairWidth}]]:[]);
   partition('z',-2.25,-13,13,[[-8.7,{name:'Study Door'}],[-.8,{name:'Music Room Door'}],[8.3,{name:'Bedroom Door'}]]);
   partition('z',2.25,-13,13,[[-8.7,{name:'Cellar Door',metal:true}],[-1.1,{name:'Kitchen Door'}],[8.3,{name:'Drawing Room Door'}]]);
   const studyOpenings=[[-10.6,{name:'Pivoting Bookcase',secret:true,width:1.65}]];
@@ -233,8 +235,8 @@ export function createWorld(scene,{legacy=false}={}) {
     const obj={kind:'drawer',x:x+Math.sin(angle)*.43,y:.74,z:z+Math.cos(angle)*.43,drawer,name,open:false};
     objects.push(obj);return obj;
   }
-  function wardrobe(x,z,angle,hide=true,recess=false) {
-    const floor=recess?floorY(x,z):0,scale=recess?.64:1;
+  function wardrobe(x,z,angle,hide=true,recess=false,base=0) {
+    const floor=recess?floorY(x,z):base,scale=recess?.64:1;
     const o=prop(x,floor,z);o.rotation.y=angle;o.scale.y=scale;
     box(0,1.15,-.38,1.67,2.26,.09,m.darkWood,o);
     for(const s of [-1,1])box(s*.82,1.15,0,.115,2.29,.84,m.wood,o);
@@ -435,6 +437,15 @@ export function createWorld(scene,{legacy=false}={}) {
         const barrel=cylinder(o,z?m.brass:m.linen,0,.039,z,.041,.041,z?.058:.15);barrel.rotation.x=toRad;
       }
     }
+    if(id==='battery') {
+      const cell=cylinder(o,m.iron,0,.05,0,.051,.051,.24);cell.rotation.x=toRad;
+      const sleeve=cylinder(o,m.brass,0,.05,-.02,.053,.053,.14);sleeve.rotation.x=toRad;
+      box(0,.05,-.128,.055,.053,.032,m.brass,o);
+    }
+    if(id==='relay'||id==='spindle') {
+      box(0,.04,0,.12,.065,.25,id==='relay'?m.linen:m.rust,o);
+      for(const side of [-1,1])box(side*.037,.04,.13,.022,.026,.077,m.brass,o);
+    }
     if(id==='crank') {
       box(0,.047,0,.36,.052,.063,m.iron,o);box(-.159,.052,.095,.06,.063,.23,m.iron,o);
       box(.151,.052,-.063,.072,.069,.16,m.rust,o);
@@ -455,6 +466,141 @@ export function createWorld(scene,{legacy=false}={}) {
       anchor:[10.41,12.14],view:[10.36,.71,12.09],peek:[10.04,11.96],exit:[9.89,11.61],yaw:-Math.PI*.73,look:.65};
     objects.push(behindSofa);hiding.push(behindSofa);
     wardrobe(10.72,-5.58,Math.PI,true,true);
+  }
+  const nightmareSpots={};
+  if(expanded) {
+    const upperY=3.4,atticY=6.8;
+    for(const [floor,left,right,height] of [['upper',23,36,upperY],['attic',45,58,atticY]]) {
+      flatFloor(left,right,-8,2,m.floor,height);
+      flatFloor(left,right,2,12,m.floor,height);
+      surface((left+right)/2,height+3.38,2,right-left,20,m.ceiling,4,7,toRad);
+      for(const z of [-8,12])partition('x',z,left,right,[],undefined,height);
+      for(const x of [left,right]) {
+        const routes=stairs.filter(stair=>stair.x0===x||stair.x1===x);
+        partition('z',x,-8,12,routes.map(({z,secret})=>[z,{name:secret&&x===45?'Attic Bookcase':'Stair Landing',
+          openPassage:!secret||x!==45,secret:secret&&x===45,width:stairWidth}]),undefined,height);
+      }
+      const names=floor==='upper'?['Library Door','Family Passage Door']:['Workshop Door','Rafter Passage Door'];
+      partition('x',2,left,right,[[left+3,{name:names[0]}],[right-3,{name:names[1]}]],undefined,height);
+      for(let x=left+.7;x<right;x+=2.25)box(x,height+3.19,2,.16,.35,20,m.darkWood);
+      for(const sign of [-1,1]) {
+        const room=wingRooms.find(r=>r.floor===floor&&(sign<0?r.z0<0:r.z0===2));
+        const x=left+6.5,z=sign<0?-7.81:11.81;
+        carpetSign(room.name.toUpperCase(),x,height+2.45,z,sign<0?0:Math.PI);
+        lights.push({x,y:height+2.48,z:z-sign*.35,color:floor==='attic'?0xcca782:0xf5c487,power:floor==='attic'?12:19,flicker:2+sign});
+        box(x,height+2.45,z-sign*.15,.17,.22,.17,m.glow);
+      }
+    }
+    partition('z',31.65,-8,2,[[-6.02,{name:'Family Door'}],[-.3,{name:'Family Passage'}]],undefined,upperY);
+    partition('z',31.65,2,12,[[4.25,{name:'Washroom Door'}],[7.05,{name:'Washroom Passage'}]],undefined,upperY);
+    const tub=prop(34.16,upperY,10.73);
+    box(0,.25,0,2.05,.49,.76,m.linen,tub);
+    box(0,.53,0,2.15,.09,.88,m.tile,tub);
+    box(0,.585,0,1.83,.024,.57,m.darkWood,tub);
+    cylinder(tub,m.brass,.8,.67,0,.032,.032,.18);
+    obstacle(34.16,10.73,2.1,.81);
+    const familyChairs=[[34.88,-5.73],[34.86,-.10]];
+    for(const [x,z] of familyChairs) {
+      const chair=prop(x,upperY,z);
+      box(0,.43,0,.74,.25,.76,m.red,chair);
+      box(0,.81,.32,.76,.86,.18,m.darkWood,chair);
+      obstacle(x,z,.78,.77);
+    }
+    carpetSign('FAMILY ROOM',34.18,5.68,-7.83);
+    carpetSign('WASHROOM',34.2,5.68,11.83,Math.PI);
+    for(const stair of stairs) {
+      const {x0,x1,z,y}=stair,span=x1-x0,rise=3.4,steps=20;
+      for(let i=0;i<steps;i++) {
+        const x=x0+(i+.5)*span/steps,h=y+i*rise/steps;
+        box(x,h-.105,z,span/steps+.012,.21,stairWidth,m.wood);
+        box(x+.12,h+.012,z,.043,.026,stairWidth,m.trim);
+      }
+      for(const side of [-1,1]) {
+        const edge=z+side*(stairWidth/2+.05);
+        obstacle((x0+x1)/2,edge,span,.18);
+        walls.push({x:(x0+x1)/2,z:edge,dx:span,dz:.18,secret:stair.secret});
+        for(let i=0;i<6;i++) {
+          const x=x0+i*(span/5),h=y+i*rise/5;
+          box(x,h+.52,edge,.13,1.04,.16,m.darkWood);
+          if(i<5) {
+            const rail=prop(x+span/10,h+rise/10+1.02,edge);
+            rail.rotation.z=Math.atan2(rise,span);
+            box(0,0,0,Math.hypot(span,rise)/5+.03,.09,.15,m.trim,rail);
+          }
+        }
+      }
+      if(stair.secret)continue;
+      carpetSign(stair.to==='upper'?'UP TO SECOND FLOOR':'UP TO ATTIC',x0+.12,y+2.36,z,-toRad);
+      carpetSign(stair.from==='main'?'DOWN TO GROUND':'DOWN TO SECOND FLOOR',x1-.12,y+5.76,z,toRad);
+      lights.push({x:(x0+x1)/2,y:y+3.98,z,color:0xffc994,power:14,flicker:0});
+    }
+    // Prevent entering the open sides of the elevated stair runs from the level below.
+    for(const [x0,x1] of [[14,23],[36,45]]) {
+      const gaps=stairs.filter(stair=>stair.x0===x0).map(stair=>stair.z);
+      for(const x of [x0+.01,x1-.01]) {
+        let start=-13;
+        for(const z of [...gaps,14.1]) {
+          const end=Math.min(13,z-stairWidth/2);
+          if(end>start)obstacle(x,(start+end)/2,.19,end-start);
+          start=z+stairWidth/2;
+        }
+      }
+    }
+    // The boiler room branches off both the cellar ramp and the drain corridor.
+    partition('x',-10.55,8.8,14,[[9.86,{name:'Boiler Service Door'}],[11.95,{name:'Boiler Door'}]],'stone',-1.15);
+    const boiler=prop(12.75,-1.15,-11.75);
+    cylinder(boiler,m.iron,0,.83,0,.49,.53,1.65);
+    cylinder(boiler,m.rust,0,1.9,0,.09,.09,.78);
+    obstacle(12.75,-11.75,1,1);
+    lights.push({x:10.1,y:.84,z:-11.9,color:0xd8aa79,power:11,flicker:6});
+    carpetSign('BOILER ROOM',11.85,1.53,-10.39,Math.PI);
+    const library=table(27.1,-5.5,2.2,.92,.84,m.darkWood,upperY);
+    const bedroom=table(33,9.25,1.62,.83,.84,m.wood,upperY);
+    for(const x of [27.9,30.2]) {
+      const bed=prop(x,upperY,10.15);
+      box(0,.32,0,1.62,.30,2.55,m.darkWood,bed);
+      box(0,.55,0,1.55,.22,2.45,m.linen,bed);
+      box(0,.68,.30,1.58,.08,1.72,m.green,bed);
+      box(0,.68,-.82,.88,.12,.46,m.linen,bed);
+      box(0,.62,1.22,1.68,1.19,.15,m.trim,bed);
+      obstacle(x,10.15,1.68,2.59);
+    }
+    for(const x of [25.6,28.4,30.18]) {
+      const shelf=prop(x,upperY,-7.55);
+      box(0,1.25,-.17,1.96,2.5,.22,m.darkWood,shelf);
+      for(let j=0;j<5;j++){
+        const y=.29+j*.47;
+        box(0,y,0,1.91,.071,.57,m.wood,shelf);
+        for(let k=0;k<8;k++)book(x-.72+k*.20,upperY+y+.12,-7.48,0,k%bookColors.length);
+      }
+      obstacle(x,-7.55,1.99,.60);
+    }
+    table(48,-5.65,2.48,.99,.94,m.darkWood,atticY);
+    table(53,9.7,1.87,.99,.83,m.wood,atticY);
+    for(const [x,z] of [[47,6.35],[54.7,10.87],[56.9,5.8],[52,-7],[34,-6.85]])crate(x,z,1.25,1.05,.84);
+    wardrobe(24.1,10.55,Math.PI,true,false,upperY).name='East Bedroom Wardrobe';
+    lights.push({x:23.4,y:upperY+2.1,z:8.2,color:0xdab58d,power:13,flicker:1.2});
+    box(23.22,upperY+2.04,8.2,.16,.24,.17,m.glow);
+    wardrobe(55.7,-7.25,0,true,false,atticY).name='Attic Cupboard';
+    const upper=(x,z,y=.91)=>({x,z,y:upperY+y});
+    const attic=(x,z,y=.9)=>({x,z,y:atticY+y});
+    itemSpots.spindle=[attic(47.6,-5.65,1),attic(53.25,9.7)];
+    itemSpots.relay=[upper(library.position.x,-5.5),upper(bedroom.position.x,9.25)];
+    nightmareSpots.key=[upper(27.6,-5.5),attic(48.45,-5.65,1)];
+    nightmareSpots.cutters=[upper(32.75,9.25),attic(52.53,9.7)];
+    nightmareSpots.fuse=[upper(26.6,-5.5),attic(47.32,-5.65,1)];
+    nightmareSpots.crank=[upper(33.44,9.25),attic(53.62,9.7)];
+    Object.assign(itemSpots,{
+      battery0:[{x:-8.75,y:.91,z:1.95},{x:7.4,y:.91,z:11.72}],
+      battery1:[upper(27.92,-5.5),upper(33.44,9.25)],
+      battery2:[attic(48.7,-5.65,1),attic(53.54,9.7)],
+      battery3:[{x:9.51,y:1.07,z:-3.85},{x:6.25,y:.91,z:1.58}],
+      battery4:[upper(26.4,-5.5),attic(47.16,-5.65,1)],
+      battery5:[{x:10.12,y:1.07,z:-3.86},{x:7.7,y:.91,z:11.72}]
+    });
+    for(const id of ['spindle','relay'])makeItem(id);
+    for(let i=0;i<6;i++)makeItem('battery').spawn='battery'+i;
+    note(27.22,upperY+.845,-5.19,'Library Inventory','The old front lock takes a spindle. The attic has the workshop and the storage shelves. For the storm drain, bring the library or washroom relay down to the cellar.');
   }
   function setContainer(o,open) {
     o.open=open;
@@ -491,7 +637,7 @@ export function createWorld(scene,{legacy=false}={}) {
     instance.receiveShadow=true;instance.castShadow=true;w.add(instance);
   }
   let gateTarget=0;
-  return {root:w,solid,doors,objects,lights,hiding,items,itemSpots,gateBlock,walls,passages,setContainer,updateContainers,
+  return {root:w,nightmareSpots,solid,doors,objects,lights,hiding,items,itemSpots,gateBlock,walls,passages,setContainer,updateContainers,
     power(on){fuseBox.lamp.material=on?m.cold:m.rust;hatch.wheel.rotation.z=on?.5:0;},
     openGate(on){gateBlock.enabled=!on;gateTarget=on?2.3:0;if(!on)gate.position.y=0;},
     updateGate(dt){gate.position.y=T.MathUtils.damp(gate.position.y,gateTarget,4,dt);}

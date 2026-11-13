@@ -1,25 +1,35 @@
 import mansion from './level-data.js';
+import previousMansion from './level-v4.js';
 import oldMansion from './level-legacy.js';
-import {clamp,floorY,SPAWN,TICK,levels,PRE_LAYOUT_RUN_VERSION,RUN_VERSION} from './rules.js';
+import {clamp,floorY,SPAWN,TICK,levels,hasMap,batterySeconds,PRE_EXPANSION_RUN_VERSION,PRE_LAYOUT_RUN_VERSION,RUN_VERSION} from './rules.js';
+import {wingPatrol} from './floors.js';
 import {navigation} from './navigation.js';
 import {createStalker} from './stalker.js';
 import {HIDE_EXIT_TICKS,hideHeading,limitHideLook} from './hide-view.js';
 
 export const key={forward:1,back:2,left:4,right:8,sprint:16};
-export const action={use:1,drop:2,crouch:4,light:8,wake:16};
+export const action={use:1,drop:2,crouch:4,light:8,wake:16,reload:128};
 const emptyProgress=()=>({cut:false,unlock:false,power:false,handle:false});
 const emptyPlayer=()=>({x:SPAWN.x,z:SPAWN.z,crouch:false,hidden:null,yaw:SPAWN.yaw,pitch:-.015,eye:1.66});
 const interval=(x,t)=>x+(t-x)*(1-Math.exp(-12*TICK));
-const seatFields=['stamina','tired','step','flash','hiddenFrom','inventory','selected'];
+const seatFields=['stamina','tired','step','flash','charge','hiddenFrom','inventory','selected'];
 
 export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=null,physicsVersion=RUN_VERSION) {
   if(!Object.hasOwn(levels,difficulty))throw new Error('Unknown difficulty');
   const safeHiding=physicsVersion>PRE_LAYOUT_RUN_VERSION;
-  const blueprint=safeHiding?mansion:oldMansion;
+  const expanded=physicsVersion>PRE_EXPANSION_RUN_VERSION;
+  const nightmare=expanded&&!hasMap(difficulty);
+  const blueprint=expanded?mansion:safeHiding?previousMansion:oldMansion;
   const state=saved??{
     tick:0,rng:seed>>>0,day:1,mode:'play',route:null,player:emptyPlayer(),brain:{actor:{x:0,z:0}},
     progress:emptyProgress(),inventory:[],selected:0,flying:[],stamina:1,tired:false,step:0,flash:true,hiddenFrom:null
   };
+  if(expanded){
+    state.charge??=1;
+    state.progress.spindle??=false;
+    state.progress.relay??=false;
+    if(state.player.hidden!==null)state.flash=false;
+  }
   let player=state.player;
   const solid=blueprint.solid.map(o=>({...o}));
   const objects=blueprint.objects.map((o,index)=>({
@@ -57,7 +67,7 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
       const origin=source??(fromEnemy?state.brain.actor:player);
       const side=d.axis==='z'?origin.x-d.x:origin.z-d.z;
       d.swing=(d.axis==='z'?(side<0?-1:1):(side<0?1:-1))*1.71;
-      if(fromEnemy&&safeHiding)notify('grannyDoor',{door:d.index});
+      if(fromEnemy&&safeHiding&&!nightmare)notify('grannyDoor',{door:d.index});
     }
     emit('door',d,fromEnemy?0:5.4);
   }
@@ -65,6 +75,7 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
     Object.assign(player,emptyPlayer());
     if(safeHiding){delete player.hideExit;delete player.hideLeave;}
     Object.assign(state,{mode:'play',stamina:1,tired:false,step:0,flash:true,hiddenFrom:null});
+    if(expanded)state.flash=state.charge>0;
     for(const f of state.flying) {
       const it=objects[f.index];
       it.y=floorY(it.x,it.z)+.075;it.flying=false;
@@ -91,30 +102,43 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
     }
     solid[blueprint.gate].enabled=!state.progress.handle;
   }
-  if(saved)restoreWorld(saved.objects);
-  else {
-    for(const it of items) {
-      const spots=blueprint.itemSpots[it.id],entry=spots[Math.floor(random()*spots.length)];
-      const s=typeof entry==='number'?objects[entry]:entry;
-      Object.assign(it,{container:s.index??null,x:s.x,y:s.y+(s.kind==='drawer'?.03:s.kind==='cabinet'?-.065:0),z:s.z,available:true,flying:false});
+  function placeItem(it) {
+    const inactive=expanded&&((it.id==='spindle'||it.id==='relay')&&!nightmare||
+      it.id==='battery'&&nightmare&&Number(it.spawn.at(-1))>=3);
+    const spots=blueprint.itemSpots[it.spawn??it.id];
+    const choices=nightmare&&blueprint.nightmareSpots[it.id]?
+      [...spots,...blueprint.nightmareSpots[it.id]]:spots;
+    const entry=choices[Math.floor(random()*choices.length)],s=typeof entry==='number'?objects[entry]:entry;
+    Object.assign(it,{container:s.index??null,x:s.x,y:s.y+(s.kind==='drawer'?.03:s.kind==='cabinet'?-.065:0),z:s.z,available:!inactive,flying:false});
+  }
+  if(saved) {
+    restoreWorld(saved.objects);
+    if(expanded) {
+      for(const it of items)if(it.available===undefined)placeItem(it);
+      if(state.brain.patrol&&!state.brain.patrol.some(([x])=>x>=23))state.brain.patrol.push(...wingPatrol);
     }
+  } else {
+    for(const it of items)placeItem(it);
     startNight();
   }
 
+  function removeSlot(i) {
+    state.inventory.splice(i,1);
+    state.selected=clamp(state.selected,0,Math.max(0,state.inventory.length-1));
+  }
   function use(id) {
     const i=state.inventory.findIndex(index=>objects[index].id===id);
     if(i<0)return false;
-    state.inventory.splice(i,1);
-    state.selected=clamp(state.selected,0,Math.max(0,state.inventory.length-1));return true;
+    removeSlot(i);return true;
   }
   function drop() {
     if(hidden()||state.inventory[state.selected]===undefined)return;
     const it=objects[state.inventory[state.selected]];
-    use(it.id);
+    removeSlot(state.selected);
     const fx=-Math.sin(player.yaw),fz=-Math.cos(player.yaw);
     const x=player.x+fx*.33,z=player.z+fz*.33;
     Object.assign(it,{x:nav.blocked(x,z,.08)?player.x:x,z:nav.blocked(x,z,.08)?player.z:z,
-      y:player.eye-.22,available:true,flying:true});
+      y:player.eye-.22,available:true,flying:true,...(expanded?{container:null}:{})});
     state.flying.push({index:it.index,vx:fx*2.05,vz:fz*2.05,vy:.5,impact:false});
     issue(it.name+' dropped');
   }
@@ -145,8 +169,8 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
     if(o.kind==='drawer'||o.kind==='cabinet')return (o.open?'Close ':'Search ')+o.name.toLowerCase();
     if(o.kind==='note')return 'Read '+o.name.toLowerCase();
     const p=state.progress;
-    if(o.kind==='front')return !p.cut?'Inspect chain':!p.unlock?'Inspect lock':'Leave through the front door';
-    if(o.kind==='fusebox')return p.power?'Power restored':'Inspect fuse box';
+    if(o.kind==='front')return !p.cut?'Inspect chain':nightmare&&!p.spindle?'Inspect deadbolt':!p.unlock?'Inspect lock':'Leave through the front door';
+    if(o.kind==='fusebox')return p.power?'Power restored':nightmare&&!p.relay?'Inspect relay socket':'Inspect fuse box';
     if(o.kind==='hatch')return p.handle?'Escape through the drain':p.power?'Inspect gate winch':'Inspect drain gate';
     return o.name;
   }
@@ -221,11 +245,13 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
       if(o.panels)setContainer(o,false);
       if(safeHiding) {
         player.yaw=hideHeading(o);player.eye=o.view[1];
+        if(expanded)state.flash=false;
       } else emit('door',o,2.35);
     }
     if(o.kind==='drawer'||o.kind==='cabinet'){setContainer(o,!o.open);emit('door',o,4.2);}
     if(o.kind==='item') {
       if(state.inventory.length===4)return issue('Your hands are full.');
+      if(o.id==='battery'&&state.inventory.filter(i=>objects[i].id==='battery').length>=2)return issue('You can carry two spare batteries.');
       Object.assign(o,{available:false,container:null,flying:false});
       state.inventory.push(o.index);state.selected=state.inventory.length-1;
       issue(o.name+' collected');emit('item',o,2);
@@ -235,6 +261,9 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
       if(!p.cut) {
         if(!use('cutters'))return issue('A steel chain. Find the bolt cutters.');
         p.cut=true;emit('drop',o,10.5);issue('Chain severed. The brass lock is still engaged.');
+      }else if(nightmare&&!p.spindle) {
+        if(!use('spindle'))return issue('The deadbolt needs a spindle. Check the attic.');
+        p.spindle=true;emit('door',o,4.1);issue('Spindle fitted. The brass lock is next.');
       }else if(!p.unlock) {
         if(!use('key'))return issue('The brass lock needs a key.');
         p.unlock=true;toggleDoor(o,true);issue('The front door is open. Go.');
@@ -242,6 +271,10 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
     }
     if(o.kind==='fusebox') {
       if(p.power)return issue('The drain gate has power.');
+      if(nightmare&&!p.relay) {
+        if(!use('relay'))return issue('The relay socket is empty. Search the second floor.');
+        p.relay=true;emit('item',o,3);issue('Relay fitted. The fuse is next.');return;
+      }
       if(!use('fuse'))return issue('The porcelain fuse is missing.');
       p.power=true;emit('power',o,8);issue('Power restored. Find the drain gate.');
     }
@@ -267,9 +300,23 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
     }
     if(slot>=0)state.selected=slot;
     if(actions&action.crouch&&!hidden())player.crouch=!player.crouch;
-    if(actions&action.light){state.flash=!state.flash;if(!safeHiding||!hidden())emit('item',player,1.8);}
+    if(expanded) {
+      if(!hidden()&&actions&action.reload) {
+        if(state.charge>=1)issue('The flashlight is fully charged.');
+        else if(use('battery')){state.charge=1;issue('Fresh battery fitted.');emit('item',player,1.8);}
+        else issue('No spare battery.');
+      }
+      if(!hidden()&&actions&action.light) {
+        if(state.charge>0){state.flash=!state.flash;emit('item',player,1.8);}
+        else issue('Battery empty. Fit a spare with R or hold Light.');
+      }
+    } else if(actions&action.light){state.flash=!state.flash;if(!safeHiding||!hidden())emit('item',player,1.8);}
     if(actions&action.use)interact();
     if(state.mode!=='play')return;
+    if(expanded&&state.flash&&!hidden()) {
+      state.charge=Math.max(0,state.charge-TICK/batterySeconds(difficulty));
+      if(state.charge<1e-9){state.charge=0;state.flash=false;issue('The flashlight battery is empty.');}
+    }
     if(actions&action.drop)drop();
     const {travelled,sprint}=moveSurvivor(player,state,nav,keys);
     if(travelled>TICK*.25) {
@@ -294,13 +341,13 @@ export function createSimulation(seed,difficulty,saved=null,notify=()=>{},party=
     const movement=control(input);
     if(state.mode!=='play')return;
     updateDrops();
-    enemy.update(TICK,safeHiding&&hidden()?null:{...player,hidden:hidden()});
+    enemy.update(TICK,safeHiding&&hidden()?null:{...player,hidden:hidden(),flash:expanded&&state.flash});
     return movement;
   }
 
   function controlSeat(seat,input) {
     player=seat.body;
-    for(const field of seatFields)state[field]=seat[field];
+    for(const field of seatFields)state[field]=seat[field]??(field==='charge'?1:seat[field]);
     try {return control(input);}
     finally {
       for(const field of seatFields)seat[field]=state[field];

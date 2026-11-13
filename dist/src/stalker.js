@@ -1,8 +1,10 @@
-import {stalkerSettings,patrolPoints,PRE_LAYOUT_RUN_VERSION,RUN_VERSION} from './rules.js';
+import {wingPatrol} from './floors.js';
+import {stalkerSettings,patrolPoints,PRE_LAYOUT_RUN_VERSION,PRE_EXPANSION_RUN_VERSION,RUN_VERSION} from './rules.js';
 const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
 
 export function createStalker(world,nav,brain,random,emit,openDoor,attack,version=RUN_VERSION) {
   const actor=brain.actor;
+  const expanded=version>PRE_EXPANSION_RUN_VERSION;
   const safeHiding=version>PRE_LAYOUT_RUN_VERSION;
   let level=stalkerSettings(brain.difficulty??'normal',version);
   function setState(next,point=null,delay=0) {
@@ -12,7 +14,8 @@ export function createStalker(world,nav,brain,random,emit,openDoor,attack,versio
     brain.difficulty=which;level=stalkerSettings(which,version);brain.gaze=0;actor.x=-7.7;actor.z=-9;brain.spawnTime=level.grace;
     brain.heading=Math.PI/2;brain.pace=0;brain.stride=.5;brain.doorWait=0;
     brain.lastNoise=null;brain.remembered=null;brain.seen=0;brain.check=null;brain.searchPoints=[];
-    brain.patrol=day%2?[...patrolPoints]:[...patrolPoints].reverse();
+    const route=expanded?[...patrolPoints,...wingPatrol]:patrolPoints;
+    brain.patrol=day%2?[...route]:[...route].reverse();
     brain.stage=brain.patrol.findIndex(p=>p[0]===0&&p[1]===-9);
     setState('patrol',brain.patrol[brain.stage]);
 
@@ -33,8 +36,9 @@ export function createStalker(world,nav,brain,random,emit,openDoor,attack,versio
     setState('search',approach??brain.searchPoints.shift()??point,5.5);
   }
   function canSee(player,distance,targetHeading) {
-    return player&&brain.spawnTime<=0&&!player.hidden&&distance<level.vision*(player.crouch?.72:1)&&
-      (distance<1.68||Math.abs(wrap(targetHeading-brain.heading))<(brain.state==='chase'?1.73:1.03))&&
+    const beam=expanded&&player?.flash&&Math.abs(wrap(Math.atan2(actor.x-player.x,actor.z-player.z)-player.yaw-Math.PI))<.62;
+    return player&&brain.spawnTime<=0&&!player.hidden&&distance<level.vision*(player.crouch?.72:1)*(beam?1.27:1)&&
+      (distance<1.68||beam&&distance<6.9||Math.abs(wrap(targetHeading-brain.heading))<(brain.state==='chase'?1.73:1.03))&&
       nav.clear(actor.x,actor.z,player.x,player.z);
   }
   function chooseTarget(players) {
@@ -64,7 +68,7 @@ export function createStalker(world,nav,brain,random,emit,openDoor,attack,versio
     const visible=canSee(player,distance,targetHeading);
     if(visible) {
       brain.seen+=dt*(distance<3?2.5:1);
-      if(brain.seen>.22||brain.state==='chase') {
+      if(brain.seen>(brain.difficulty==='nightmare'?.11:.22)||brain.state==='chase') {
         brain.remembered=[player.x,player.z];
         if(brain.state!=='chase'){brain.check=null;setState('chase',brain.remembered,3);}
         else {brain.goal=brain.remembered;brain.timer=3;}
@@ -79,7 +83,7 @@ export function createStalker(world,nav,brain,random,emit,openDoor,attack,versio
         brain.goal=point;
         if(brain.state==='investigate')brain.timer=9;
       } else {
-        brain.check=null;setState('alert',point,.42);
+        brain.check=null;setState('alert',point,brain.difficulty==='nightmare'?.15:.42);
       }
     }
     brain.lastNoise=null;
@@ -113,8 +117,8 @@ export function createStalker(world,nav,brain,random,emit,openDoor,attack,versio
       }
     }
     if(brain.state==='patrol'&&(arrived||brain.timer<-12)) {
-      brain.stage=(brain.stage+(random()<.16?2:1))%brain.patrol.length;
-      setState('patrol',brain.patrol[brain.stage],8);
+      brain.stage=(brain.stage+(random()<(brain.difficulty==='nightmare'?.03:.16)?2:1))%brain.patrol.length;
+      setState('patrol',brain.patrol[brain.stage],expanded?22:8);
     }
     let moveHeading=brain.heading,travelled=0;
     if(brain.goal&&brain.state!=='alert'&&!(brain.state==='search'&&arrived)) {

@@ -63,7 +63,7 @@
     <div class="panel narrow">
       <div class="panel-top"><button class="back" data-back><svg><use href="#back"/></svg><span>Back</span></button><span class="eyebrow">BLACKMERE HOUSE</span></div>
       <p class="eyebrow amber">CHOOSE YOUR RUN</p><h2 id="dispatchTitle">Enter the House</h2>
-      <label class="dispatch-difficulty">Difficulty <select id="playDifficulty" aria-label="Run difficulty"><option value="story">Story</option><option value="normal">Standard</option><option value="dread">Nightmare</option></select></label>
+      <label class="dispatch-difficulty">Difficulty <select id="playDifficulty" aria-label="Run difficulty"><option value="story">Easy</option><option value="normal">Normal</option><option value="dread">Hard</option><option value="nightmare">Nightmare</option></select></label>
       <div class="stack run-choices">
         <button data-online-only id="rankedPlay" class="primary"><span>Ranked run</span><svg><use href="#arrow"/></svg></button>
         <small data-online-only id="rankedHelp">A player profile is required to record a verified result.</small>
@@ -94,7 +94,7 @@
             <form id="mpCreate">
               <label>Access <select id="mpAccess"><option value="private">Invite code only</option><option value="public">Public room</option></select></label>
               <label>Time limit <select id="mpMinutes"><option value="6">6 minutes</option><option value="8" selected>8 minutes</option><option value="10">10 minutes</option></select></label>
-              <label>Co-op difficulty <select id="mpDifficulty"><option value="story">Story</option><option value="normal" selected>Standard</option><option value="dread">Nightmare</option></select></label>
+              <label>Difficulty <select id="mpDifficulty"><option value="story">Easy</option><option value="normal" selected>Normal</option><option value="dread">Hard</option><option value="nightmare">Nightmare</option></select></label>
               <label>Allow proximity voice <input id="mpVoiceRoom" type="checkbox"></label>
               <button class="secondary" type="submit">Create Room</button>
             </form>
@@ -127,7 +127,7 @@
               <label>Mode <select id="mpEditMode"><option value="pvp">Survivors vs. Granny</option><option value="coop">Co-op vs. AI</option></select></label>
               <label>Access <select id="mpEditAccess"><option value="private">Invite code only</option><option value="public">Public room</option></select></label>
               <label>Time limit <select id="mpEditMinutes"><option value="6">6 minutes</option><option value="8">8 minutes</option><option value="10">10 minutes</option></select></label>
-              <label>Co-op difficulty <select id="mpEditDifficulty"><option value="story">Story</option><option value="normal">Standard</option><option value="dread">Nightmare</option></select></label>
+              <label>Difficulty <select id="mpEditDifficulty"><option value="story">Easy</option><option value="normal">Normal</option><option value="dread">Hard</option><option value="nightmare">Nightmare</option></select></label>
               <label>Allow proximity voice <input id="mpVoiceEdit" type="checkbox"></label>
               <button class="secondary" type="submit">Apply Settings</button>
             </form>
@@ -256,7 +256,7 @@
       <div class="dialog-grid">
         <section class="dialog-card preferences-card">
           <h3>Gameplay &amp; display</h3>
-          <label class="preference"><span>Difficulty</span><select id="difficulty" aria-describedby="levelDescription"><option value="story">Story</option><option value="normal">Standard</option><option value="dread">Nightmare</option></select></label>
+          <label class="preference"><span>Difficulty</span><select id="difficulty" aria-describedby="levelDescription"><option value="story">Easy</option><option value="normal">Normal</option><option value="dread">Hard</option><option value="nightmare">Nightmare</option></select></label>
           <p class="setting-detail" id="levelDescription"></p>
           <label class="preference"><span>Graphics</span><select id="graphics"><option value="auto">Automatic</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select></label>
           <label class="preference"><span>Frame-rate limit</span><select id="frameRate"><option value="auto">Automatic</option><option value="30">30 FPS</option><option value="60">60 FPS</option></select></label>
@@ -323,7 +323,8 @@
         </section>
       </div>
       <div class="guide-tip"><svg aria-hidden="true"><use href="#flashIcon"/></svg><div><strong>Stay quiet</strong><p>Crouch to muffle your steps or drop a tool to draw her away. Designated hiding spots are safe until you leave. Look through the gap before stepping out.</p></div></div>
-      <div class="guide-tip"><svg aria-hidden="true"><use href="#house"/></svg><div><strong>Read the house</strong><p>Switch map floors with M, controller D-pad Left, or the floor button. Teal dots mark nearby teammates. Red pulses mark doors Granny opened recently.</p></div></div>
+      <div class="guide-tip"><svg aria-hidden="true"><use href="#flashIcon"/></svg><div><strong>Carry a spare</strong><p>Use F or tap Light to toggle the flashlight. Press R, hold Light, or press the right trigger and X together to fit a spare battery.</p></div></div>
+      <div class="guide-tip"><svg aria-hidden="true"><use href="#house"/></svg><div><strong>Read the house</strong><p>In Easy, Normal, and Hard, press M, D-pad Left, or the floor button to cycle through visited floors. Nightmare has no map. Follow stair signs and room plaques.</p></div></div>
       <div class="guide-tip"><svg aria-hidden="true"><use href="#settingsIcon"/></svg><div><strong>Touch and controller</strong><p>Use the joystick to move and drag the scene to look. On a controller, use both sticks, A to interact, B to crouch, right trigger to sprint, X for light, and Menu to pause. Granny uses L3 for a snare and R3 for a door bolt.</p></div></div>
       <footer class="dialog-footer"><span>Landscape gives you a wider view on phones.</span><button class="primary" data-back>Done</button></footer>
     </div>
@@ -335,12 +336,13 @@
       <div class="hud-journal"><kbd>Tab</kbd> Journal</div>
       <div class="touch-top"><button data-touch="journal">Journal</button><button data-touch="pause">Pause</button></div>
     </div>
-    <aside id="minimap" class="minimap" aria-label="Mansion map">
+    <div id="mapMount"></div>
+    <template id="mapTemplate"><aside id="minimap" class="minimap" aria-label="Mansion map">
       <div class="map-head"><span id="mapFloor">Ground floor</span><button type="button" id="mapSwitch" aria-label="View lower cellar" title="Change floor (M)">B1</button></div>
       <canvas id="mansionMap" width="160" height="143" aria-label="Mansion floor plan with your position, nearby teammates and door states"></canvas>
       <div class="map-key" aria-hidden="true"><span><i></i>Open</span><span><i></i>Shut</span><span><i></i>Locked</span></div>
       <span class="mp-sr" id="mapNotice" role="status"></span>
-    </aside>
+    </aside></template>
     <div id="mpHud" class="mp-hud" hidden>
       <div><span id="mpHudRole" class="eyebrow"></span><strong id="mpHudTime">–:–</strong><span id="mpHudTeam"></span></div>
       <p id="mpHudStatus"></p><p id="mpHudAbilities"></p><p id="mpHudVoice" hidden>Hold V to speak</p>
@@ -358,11 +360,14 @@
     <div class="hud-bottom">
       <div class="status"><span class="eyebrow">STAMINA</span><div class="bar"><i id="stamina"></i></div><span id="threat" class="eyebrow"></span></div>
       <div id="inventory" class="inventory" aria-label="Inventory"></div>
-      <div class="flash"><svg><use href="#flashIcon"/></svg><span id="flashLabel">LIGHT ON</span><kbd>F</kbd></div>
+      <div class="flash battery-hud" id="batteryHud" aria-label="Flashlight battery">
+        <svg aria-hidden="true"><use href="#flashIcon"/></svg><div><span id="flashLabel">100% · Light on</span><div class="battery-meter"><i id="batteryBar"></i></div></div>
+        <span id="batterySpare">0 spare</span>
+      </div>
     </div>
     <div class="touch-controls" aria-label="Touch controls">
       <div id="joystick" class="joystick" aria-label="Movement joystick"><span class="joystick-rings" aria-hidden="true"></span><span id="joystickThumb" aria-hidden="true"></span></div>
-      <div class="touch-actions"><button data-touch="KeyE" id="touchUse">Use</button><button data-touch="ShiftLeft">Run</button><button data-touch="KeyC">Crouch</button><button data-touch="KeyF">Light</button><button data-touch="KeyG">Drop</button><button data-touch="KeyQ" data-granny hidden>Snare</button><button data-touch="KeyX" data-granny hidden>Bolt</button><button data-touch="KeyV" id="mpTalk" hidden>Talk</button></div>
+      <div class="touch-actions"><button data-touch="KeyE" id="touchUse">Use</button><button data-touch="ShiftLeft">Run</button><button data-touch="KeyC">Crouch</button><button id="touchLight" title="Tap to toggle, hold to fit a spare" aria-label="Flashlight. Tap to toggle or hold to fit a spare battery.">Light</button><button data-touch="KeyG">Drop</button><button data-touch="KeyQ" data-granny hidden>Snare</button><button data-touch="KeyX" data-granny hidden>Bolt</button><button data-touch="KeyV" id="mpTalk" hidden>Talk</button></div>
     </div>
     <aside id="rotateHint" class="rotate-hint" hidden><div><strong>A wider view</strong><span>Rotate to landscape for more room to look.</span></div><button type="button" id="dismissRotate" class="text-button" aria-label="Dismiss rotate suggestion">×</button></aside>
   </section>

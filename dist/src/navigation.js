@@ -1,15 +1,33 @@
-import {bounds} from './rules.js';
+import {bounds as expandedBounds,oldBounds} from './rules.js';
+import {stairs,stairWidth} from './floors.js';
 
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-const gap=.5,cols=56,rows=52;
+const gap=.5;
 const grids=new WeakMap();
 
 export function navigation(world) {
+  const bounds=world.geometry?.expanded?expandedBounds:oldBounds;
+  const cols=Math.ceil((bounds.x1-bounds.x0)/gap),rows=52;
+  const bucketSize=2, buckets=new Map();
+  const bucketKey=(x,z)=>x*128+z;
+  for(const o of world.solid) {
+    for(let x=Math.floor((o.x-o.dx/2-.35)/bucketSize);x<=Math.floor((o.x+o.dx/2+.35)/bucketSize);x++) {
+      for(let z=Math.floor((o.z-o.dz/2-.35)/bucketSize);z<=Math.floor((o.z+o.dz/2+.35)/bucketSize);z++) {
+        const k=bucketKey(x,z);
+        if(!buckets.has(k))buckets.set(k,[]);
+        buckets.get(k).push(o);
+      }
+    }
+  }
+  const nearby=(x,z)=>buckets.get(bucketKey(Math.floor(x/bucketSize),Math.floor(z/bucketSize)))??[];
+  const inFootprint=(x,z)=>x<14||(x>=23&&x<36||x>=45)&&z>=-8&&z<=12||
+    stairs.some(s=>x>=s.x0&&x<=s.x1&&Math.abs(z-s.z)<=stairWidth/2);
   const normalDoors=world.doors.filter(d=>d.kind==='door'&&!d.secret);
   const doorBlocks=new Set(normalDoors.map(d=>d.blocker));
   function blocked(x,z,r=.23,navigating=false) {
     if(x-r<bounds.x0||x+r>bounds.x1||z-r<bounds.z0||z+r>bounds.z1)return true;
-    return world.solid.some(o=>{
+    if(world.geometry?.expanded&&!inFootprint(x,z))return true;
+    return nearby(x,z).some(o=>{
       if(o.enabled===false||(navigating&&doorBlocks.has(o)))return false;
       const dx=x-clamp(x,o.x-o.dx/2,o.x+o.dx/2),dz=z-clamp(z,o.z-o.dz/2,o.z+o.dz/2);
       return dx*dx+dz*dz<r*r;
@@ -45,7 +63,7 @@ export function navigation(world) {
   if(!staticGrid) {
     staticGrid=Array.from({length:cols*rows},(_,i)=>{
       const [x,z]=point(i);
-      return world.solid.some(o=>o.enabled===undefined&&Math.hypot(
+      return (world.geometry?.expanded&&!inFootprint(x,z))||nearby(x,z).some(o=>o.enabled===undefined&&Math.hypot(
         x-clamp(x,o.x-o.dx/2,o.x+o.dx/2),z-clamp(z,o.z-o.dz/2,o.z+o.dz/2))<.29);
     });
     grids.set(geometry,staticGrid);
@@ -108,5 +126,10 @@ export function navigation(world) {
     if(first&&!clear(ax,az,...first,.23,true))route.unshift([sx,sz]);
     return route;
   }
-  return {blocked,clear,move,path,doorAhead};
+  function beamReach(x,z,yaw,max=19) {
+    const dx=-Math.sin(yaw),dz=-Math.cos(yaw);
+    for(let d=.24;d<max;d+=.21)if(blocked(x+dx*d,z+dz*d,.075))return Math.max(.36,d+.16);
+    return max;
+  }
+  return {blocked,clear,move,path,doorAhead,beamReach};
 }

@@ -1,4 +1,5 @@
 import {api} from './online.js';
+import {levels} from './rules.js';
 import {MATCH_VERSION} from './match.js';
 import {proximityVoice} from './voice.js';
 
@@ -152,7 +153,7 @@ export function bindMultiplayer({navigate,isOpen,social,game,currentGame}) {
     const lobby=room.phase==='lobby',playing=room.phase==='play',host=room.hostId===room.me;
     const own=room.members.find(m=>m.id===room.me),granny=room.mode==='pvp';
     const connected=room.members.filter(m=>m.online);
-    put('mpRoomCode',room.code);put('mpRoomType',title(room.mode)+' · '+(room.access==='public'?'Public':'Private')+(room.voice?' · Voice opt-in':''));
+    put('mpRoomCode',room.code);put('mpRoomType',title(room.mode)+' · '+levels[room.difficulty].label+' · '+(room.access==='public'?'Public':'Private')+(room.voice?' · Voice opt-in':''));
     put('mpCount',connected.length+' / '+room.capacity);
     put('mpRosterTitle',lobby?'The crew':playing?'In the house':'Match record');
     put('mpIntro',lobby?'Choose a role, ready up, and enter together.':
@@ -455,7 +456,7 @@ export function bindMultiplayer({navigate,isOpen,social,game,currentGame}) {
       for(const b of document.querySelectorAll('[data-granny]'))b.hidden=!hunter;
       for(const b of document.querySelectorAll('[data-touch="KeyG"],[data-touch="KeyC"],[data-touch="ShiftLeft"]'))b.hidden=Boolean(hunter);
       if(!next){this.connection('');return;}
-      put('hudDay',next.mode==='pvp'?'PVP MATCH':'CO-OP MATCH');
+      put('hudDay',next.difficulty==='nightmare'?'NIGHTMARE':next.mode==='pvp'?'PVP MATCH':'CO-OP MATCH');
       put('mpHudRole',hunter?'GRANNY':'SURVIVOR');
       put('mpHudTime',time(Math.max(0,Math.ceil((next.deadline-next.clock)/1000))));
       const survivors=next.roster.filter(p=>p.role==='survivor');

@@ -1,15 +1,15 @@
 import {createSimulation,moveSurvivor,key,action} from './simulation.js';
-import {clamp,floorY,levels,PRE_SLOWDOWN_RUN_VERSION,RUN_VERSION,SPAWN,TICK,DOOR_ALERT_MS} from './rules.js';
+import {clamp,floorY,levels,PRE_SLOWDOWN_RUN_VERSION,RUN_VERSION,SPAWN,TICK,DOOR_ALERT_MS,hasMap} from './rules.js';
 import {peekSees} from './hide-view.js';
 
-export const MATCH_VERSION=2;
+export const MATCH_VERSION=3;
 export const skill={trap:32,bolt:64};
 export const durations=[6,8,10];
 export const preferences=['survivor','granny','random'];
 export const graceMs=45_000;
 const tickMs=TICK*1000;
 const currentGrannySpeed=2.82;
-const grannySpeed=room=>room.physicsVersion===undefined||room.physicsVersion===PRE_SLOWDOWN_RUN_VERSION?3.38:currentGrannySpeed;
+const grannySpeed=room=>room.physicsVersion===undefined||room.physicsVersion===PRE_SLOWDOWN_RUN_VERSION?3.38:room.difficulty==='nightmare'?3.20:currentGrannySpeed;
 const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
 const gap=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 const round=(n)=>Math.round(n*1000)/1000;
@@ -41,7 +41,7 @@ export function startMatch(room,now,seed=crypto.getRandomValues(new Uint32Array(
   let i=0;
   for(const p of members) {
     p.role=p===hunter?'granny':'survivor';p.status='active';p.seq=0;p.keys=0;p.actions=0;p.slot=-1;
-    p.stamina=1;p.tired=false;p.step=0;p.flash=true;p.hiddenFrom=null;p.inventory=[];p.selected=0;
+    p.stamina=1;p.tired=false;p.step=0;p.flash=p!==hunter;p.charge=p===hunter?0:1;p.hiddenFrom=null;p.inventory=[];p.selected=0;
     p.escapedAt=0;p.downAt=0;p.finishedAt=0;p.safeUntil=0;p.slowUntil=0;p.attackAt=0;p.trapAt=0;p.boltAt=0;
     p.objectives=0;p.rescues=0;p.captures=0;p.captureTime=0;p.stride=.5;p.pace=0;p.spectate=null;
     p.emergedAt=0;
@@ -203,7 +203,7 @@ export function advanceMatch(room,now) {
     if(kind==='sound') {
       const range={step:acting?.body.crouch?2:acting?.keys&key.sprint?11:6,door:8,drop:13,power:12,enemyStep:11,item:4};
       sound(room,data.kind,data.at,range[data.kind]??5,data.kind==='enemyStep'?null:acting?.id);
-    } else if(kind==='grannyDoor')room.doorAlerts[data.door]=room.clock;
+    } else if(kind==='grannyDoor'&&hasMap(room.difficulty))room.doorAlerts[data.door]=room.clock;
     else if(kind==='toast'&&acting)notice(room,'toast',{target:acting.id,text:data});
     else if(kind==='note'&&acting)notice(room,'toast',{target:acting.id,text:data.name});
   },party,room.physicsVersion??RUN_VERSION);
@@ -234,7 +234,7 @@ export function advanceMatch(room,now) {
       const concealed=p.body.hidden!==null;
       const before=Object.values(sim.state.progress).filter(Boolean).length;
       const move=sim.controlSeat(p,[p.slowUntil>room.clock?0:keys,Math.round(wrap(p.yaw-p.body.yaw)*1000),
-        Math.round((p.pitch-p.body.pitch)*1000),interacting?actions&~action.use:actions&31,slot]);
+        Math.round((p.pitch-p.body.pitch)*1000),interacting?actions&~action.use:actions&(15|action.reload),slot]);
       p.objectives+=Object.values(sim.state.progress).filter(Boolean).length-before;
       if(concealed&&p.body.hidden===null)p.emergedAt=room.clock;
       if(p.status!=='active')continue;
@@ -249,7 +249,7 @@ export function advanceMatch(room,now) {
       }
     }
     acting=null;
-    const candidates=room.mode==='coop'?players(room).filter(active).map(p=>({...p.body,id:p.id,hidden:
+    const candidates=room.mode==='coop'?players(room).filter(active).map(p=>({...p.body,id:p.id,flash:p.flash,hidden:
       p.body.hidden===null?null:sim.world.objects[p.body.hidden]})):null;
     sim.tickHouse(candidates);
     if(room.clock>=room.scareAt) {
@@ -267,7 +267,7 @@ export function advanceMatch(room,now) {
 function avatar(p) {
   const {x,z,yaw,pitch,crouch,eye}=p.body;
   return {id:p.id,name:p.name,role:p.role,status:p.status,x:round(x),z:round(z),yaw:round(yaw),pitch:round(pitch),
-    crouch,eye:round(eye),stride:round(p.stride),pace:round(p.pace),attack:p.attackAt>0&&p.attackAt-990>p.viewTime,
+    crouch,eye:round(eye),flash:p.role==='survivor'&&p.flash&&p.status==='active',stride:round(p.stride),pace:round(p.pace),attack:p.attackAt>0&&p.attackAt-990>p.viewTime,
     emerging:p.emergedAt?round(clamp(1-(p.viewTime-p.emergedAt)/480,0,1)):0};
 }
 export function viewMatch(room,seat,after,worldVersion=0) {
@@ -293,9 +293,9 @@ export function viewMatch(room,seat,after,worldVersion=0) {
     e.x===undefined||gap(e,body)<e.radius*(seat.role==='granny'?1.28:1)));
   const timers={attack:seat.attackAt,trap:seat.trapAt,bolt:seat.boltAt,down:seat.downAt&&seat.downAt+29_000,
     slow:seat.slowUntil,warm:room.started+6500};
-  const mapTeam=seat.role==='survivor'?team.filter(p=>p!==eye&&['active','captured'].includes(p.status)&&
+  const mapTeam=hasMap(room.difficulty)&&seat.role==='survivor'?team.filter(p=>p!==eye&&['active','captured'].includes(p.status)&&
     p.body.hidden===null&&gap(p.body,body)<8.5).map(p=>({id:p.id,x:round(p.body.x),z:round(p.body.z),down:p.status==='captured'})):[];
-  const doorAlerts=seat.role==='survivor'?Object.entries(room.doorAlerts)
+  const doorAlerts=hasMap(room.difficulty)&&seat.role==='survivor'?Object.entries(room.doorAlerts)
     .filter(([,opened])=>room.clock-opened<DOOR_ALERT_MS).map(([id,opened])=>[Number(id),opened]):[];
   const peers=room.voice&&seat.voice&&seat.status==='active'?room.members
     .filter(p=>p!==seat&&p.voice&&p.status==='active'&&!p.left&&room.clock-p.seen<4500).map(p=>{
@@ -304,9 +304,9 @@ export function viewMatch(room,seat,after,worldVersion=0) {
       return {id:p.id,version:p.voice,gain:Math.round(strength*10)/10};
     }):[];
   return {game:room.game,version:MATCH_VERSION,clock:room.clock,deadline:room.deadline,lastEvent:room.eventSeq,events,grannySpeed:grannySpeed(room),
-    phase:room.phase,winner:room.winner,reason:room.reason,mode:room.mode,difficulty:room.difficulty,roster,avatars,ai,world,worldVersion:room.worldVersion,mapTeam,doorAlerts,
-    me:{...avatar({...seat,viewTime:room.clock}),body:{...seat.body},flash:seat.flash,stamina:seat.stamina,tired:seat.tired,
-      inventory:seat.inventory,selected:seat.selected,seq:seat.seq,status:seat.status},watch:watch?{name:watch.name,body:{...body},flash:watch.flash}:null,
+    phase:room.phase,winner:room.winner,reason:room.reason,mode:room.mode,difficulty:room.difficulty,roster,avatars,ai,world,worldVersion:room.worldVersion,...(hasMap(room.difficulty)?{mapTeam,doorAlerts}:{}),
+    me:{...avatar({...seat,viewTime:room.clock}),body:{...seat.body},flash:seat.flash,charge:seat.charge,stamina:seat.stamina,tired:seat.tired,
+      inventory:seat.inventory,selected:seat.selected,seq:seat.seq,status:seat.status},watch:watch?{name:watch.name,body:{...body},flash:watch.flash,charge:watch.charge,inventory:watch.inventory}:null,
     progress:room.world.progress,timers,traps:room.traps.filter(t=>seat.role==='granny'||(gap(t,body)<2.1&&sim.nav.clear(body.x,body.z,t.x,t.z))),
     bolts:Object.keys(room.bolts).map(Number),voice:Boolean(room.voice),peers,casual:room.access!=='public'||Boolean(room.forfeit)};
 }

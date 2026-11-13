@@ -1,4 +1,4 @@
-import { itemInfo, levels } from './rules.js';
+import { itemInfo, levels, hasMap } from './rules.js';
 import { rankedAttempt } from './online.js';
 import { bindSocial, timeLabel } from './social.js';
 import { bindMultiplayer } from './multiplayer.js';
@@ -190,16 +190,23 @@ const ui={
       slot.setAttribute('aria-label','Slot '+(i+1)+', '+slot.title);
     });
   },
-  updateObjectives(progress) {
+  difficulty(value){
+    document.documentElement.dataset.nightmare=String(!hasMap(value));
+    $('footstepCue').hidden=true;
+  },
+  updateObjectives(progress,difficulty) {
     const container=$('objectives');
     container.replaceChildren();
     for(const [route,goals] of rows) {
       const h=document.createElement('h3'),list=document.createElement('ul');
       h.textContent=route;
-      for(const [id,label,hint] of goals) {
+      const additional=route==='The Front Door'?['spindle','Fit the deadbolt spindle','Search the attic workshop or storage.']:
+        ['relay','Fit the drain relay','Search the library and washroom.'];
+      const tasks=hasMap(difficulty)?goals:route==='The Front Door'?[goals[0],additional,goals[1]]:[additional,...goals];
+      for(const [id,label,hint] of tasks) {
         const row=document.createElement('li'),caption=document.createElement('span');
         row.classList.toggle('done',progress[id]);row.textContent=(progress[id]?'✓  ':'○  ')+label;
-        if(!progress[id]){caption.textContent=hint;row.append(caption);}
+        if(!progress[id]){caption.textContent=hasMap(difficulty)?hint:({cut:'Search for bolt cutters.',unlock:'Find the front key.',power:'Find a porcelain fuse.',handle:'Locate the missing winch handle.'}[id]??hint);row.append(caption);}
         list.append(row);
       }
       container.append(h,list);
@@ -231,7 +238,19 @@ const ui={
   },
   toast(text){const el=$('toast');clearTimeout(toastTimer);el.textContent=text;el.classList.add('show');toastTimer=setTimeout(()=>el.classList.remove('show'),2750);},
   area(name){$('area').textContent=name;},
-  flash(on){$('flashLabel').textContent=on?'LIGHT ON':'LIGHT OFF';},
+  flash(on,charge,spare,hunter){
+    const hud=$('batteryHud');
+    hud.hidden=hunter;$('touchLight').hidden=hunter;
+    if(hunter)return;
+    const value=Math.ceil((charge??1)*100);
+    const label=value===0?'Empty':value<=10?'Critical':value<=25?'Low':on?'On':'Off';
+    const text=value+'% · '+label;
+    if($('flashLabel').textContent!==text)$('flashLabel').textContent=text;
+    const stock=spare+' spare';
+    if($('batterySpare').textContent!==stock)$('batterySpare').textContent=stock;
+    hud.dataset.status=value<=10?'critical':value<=25?'low':'normal';
+    $('batteryBar').style.width=value+'%';
+  },
   mouseHint(show){$('mouseHint').hidden=!show;},
   hide(type){
     const shade=$('gameShade');
