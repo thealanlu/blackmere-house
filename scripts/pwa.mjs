@@ -14,9 +14,13 @@ export async function buildPwa(output) {
     }
   }
   for(const folder of ['src','vendor','assets'])await collect(folder);
+  // Serve the offline shell from a plain-text asset so hosts cannot inject network scripts into it.
+  const shell='offline-shell.txt';
+  await writeFile(new URL(shell,output),await readFile(new URL('index.html',output)));
   const entries=await Promise.all(files.sort().map(async path=>{
-    const bytes=await readFile(new URL(path,output));
-    return {path,size:bytes.length,sha256:sha(bytes)};
+    const source=path==='index.html'?shell:path;
+    const bytes=await readFile(new URL(source,output));
+    return {path,source,size:bytes.length,sha256:sha(bytes)};
   }));
   const source=await readFile(workerSource,'utf8');
   const version=sha(source+JSON.stringify(entries)).slice(0,20);

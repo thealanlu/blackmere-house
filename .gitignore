@@ -4,6 +4,7 @@ node_modules/
 /dist/.openai/
 /dist/sw.js
 /dist/offline-manifest.json
+/dist/offline-shell.txt
 /server/assets.generated.js
 /.env
 /.env.*

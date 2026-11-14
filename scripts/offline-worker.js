@@ -5,7 +5,16 @@ const entries=new Map(manifest.files.map(file=>[new URL(file.path,scope).pathnam
 const home=entries.get(new URL('index.html',scope).pathname);
 const key=file=>new URL(file.path,scope).href;
 const toHex=bytes=>Array.from(new Uint8Array(bytes),byte=>byte.toString(16).padStart(2,'0')).join('');
-const fetchAsset=file=>fetch(key(file),{cache:'reload',credentials:'omit',redirect:'error'});
+async function fetchAsset(file) {
+  const response=await fetch(new URL(file.source,scope),{cache:'reload',credentials:'omit',redirect:'error'});
+  if(file!==home||!response.ok)return response;
+  return new Response(await response.arrayBuffer(),{headers:{
+    'Content-Type':'text/html; charset=utf-8',
+    'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'",
+    'X-Content-Type-Options':'nosniff',
+    'Referrer-Policy':'no-referrer'
+  }});
+}
 
 async function intact(response,file) {
   if(!response?.ok)return false;
@@ -80,7 +89,7 @@ async function serve(file,navigation) {
       return response;
     }
     // If the running worker missed a deployment and its shell is gone, let the browser load the newer shell.
-    if(navigation&&response.ok)return response;
+    if(navigation)return await fetch(key(file),{cache:'reload',credentials:'omit'});
   }catch{}
   if(navigation)return new Response('<!doctype html><meta name="viewport" content="width=device-width"><title>Blackmere House</title><h1>Offline files need repair</h1><p>Reconnect and reopen Blackmere House to restore the game files.</p>',
     {status:503,headers:{'Content-Type':'text/html; charset=utf-8'}});

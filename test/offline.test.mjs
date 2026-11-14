@@ -13,7 +13,7 @@ test('the offline manifest hashes every packaged game asset and excludes the ser
   const {files,total}=JSON.parse(await readFile(new URL('offline-manifest.json',dist)));
   assert.equal(total,files.reduce((sum,file)=>sum+file.size,0));
   for(const file of files) {
-    const bytes=await readFile(new URL(file.path,dist));
+    const bytes=await readFile(new URL(file.source,dist));
     assert.equal(bytes.length,file.size);
     assert.equal(createHash('sha256').update(bytes).digest('hex'),file.sha256);
     assert.doesNotMatch(file.path,/^(api|server|\.openai)\//);
