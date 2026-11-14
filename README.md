@@ -30,7 +30,15 @@ Open [http://127.0.0.1:8127](http://127.0.0.1:8127) in a WebGL 2 browser. The lo
 
 On a touch device, use the virtual joystick to move, drag the scene to look, and use the contextual action button. Landscape is preferred, and portrait stays playable. The game switches the HUD when it detects touch, mouse, keyboard, or standard controller input. In Settings, adjust touch and controller aim, inversion, joystick size, opacity, side and offsets, motion effects, and optional gyroscope and haptic controls.
 
-Check the journal for both escape routes. Drawers and cupboards can hold tools, and item locations vary by run. Items and escape progress carry over after capture. Difficulty is chosen at the start of a run. Use **Save & Exit** to keep one unranked solo checkpoint. The game also keeps local checkpoints during play. When signed in and online, **Save & Exit** uploads the checkpoint to your account so another device can open it under **Single Player → Continue Solo Save**. Verified runs stay tied to their original session.
+Check the journal for both escape routes. Drawers and cupboards can hold tools, and item locations vary by run. Items and escape progress carry over after capture. Difficulty is chosen at the start of a run. Use **Save & Exit** to keep one unranked solo checkpoint. The game also keeps local checkpoints during play. Local saves reopen through **Continue Solo Save**. In the hosted edition, sign in and open **Local Saves & Record** to review and upload a checkpoint. When copies differ, choose which to use. Blackmere keeps the other copy on this device. Verified ranked runs stay tied to their original session.
+
+### Play offline
+
+On the title screen, open **Download Offline Content**. Wait for **Ready for offline play** before disconnecting. **Install Game** opens your browser’s install prompt or shows home-screen instructions. On iPhone and iPad, open the installed icon while connected and confirm readiness there. Some browsers keep installed-app storage separate from regular tabs.
+
+Use **Download / Repair** to replace missing or damaged files when connected. Updates download in the background and take effect after all Blackmere tabs close. The offline download contains only public game files. Checkpoints, settings, and personal records live in browser storage.
+
+In the hosted edition, **Sync Personal Record** submits eligible solo escape replays for server verification. Valid results appear in your personal offline record. Global rankings use verified online runs.
 
 The mansion has four levels. Take either east staircase from the ground floor to the library and east bedrooms, then use either stairway into the attic. The basement contains the boiler room and storm drain. In Easy, Normal, and Hard, use **M**, D-pad Left, or the floor button to cycle through visited maps. A red pulse lasts five seconds at each door Granny opens. Teal arrows indicate nearby teammates above or below the displayed level.
 

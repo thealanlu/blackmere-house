@@ -2,7 +2,7 @@ import assets from './assets.generated.js';
 import {HttpError,fail,json,limit} from './http.js';
 import {identity,authRoute,supabaseEnabled} from './auth.js';
 import {players,profileFor} from './players.js';
-import {runs} from './runs.js';
+import {runs,offlineRecord} from './runs.js';
 import {multiplayer,exchange} from './multiplayer.js';
 import {deviceSync} from './device-sync.js';
 
@@ -21,6 +21,7 @@ async function api(request,env,url) {
   const user=await identity(request,env);
   const profile=await profileFor(env.DB,user);
   if(['/api/preferences','/api/checkpoint'].includes(url.pathname))return deviceSync(request,env,url.pathname.slice(5),profile);
+  if(url.pathname==='/api/offline-record')return offlineRecord(request,env.DB,profile);
   if(url.pathname==='/api/runs'||url.pathname.startsWith('/api/runs/'))return runs(request,env,url,profile);
   if(url.pathname==='/api/multiplayer'||url.pathname.startsWith('/api/multiplayer/'))return multiplayer(request,env,url,profile);
   if(url.pathname==='/api/leaderboard')await limit(env.DB,'board:'+(user?.subject??request.headers.get('cf-connecting-ip')??'local'),80);

@@ -45,6 +45,7 @@ export function bindSocial(navigate,isOpen) {
     $('notificationBadge').textContent=count>99?'99+':count||'';
   }
   async function session() {
+    if(!navigator.onLine)return current;
     try{
       current=await api('me');
       if(!current.user&&savedSession.get()&&config.passwordAccounts){
@@ -107,6 +108,7 @@ export function bindSocial(navigate,isOpen) {
     finally{b.disabled=false;}
   };
   async function initialize() {
+    if(!navigator.onLine)return;
     try{config=await api('config');}catch{}
     await session();if(isOpen('auth'))showAuth(authMode,true);
   }

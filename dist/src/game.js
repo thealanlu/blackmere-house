@@ -9,6 +9,7 @@ import { rng,setMaterialQuality } from './materials.js';
 import { moveGranny, skill } from './match.js';
 import { survivorModel } from './survivor.js';
 import { mansionMap } from './minimap.js';
+import {soloReplay} from './solo-record.js';
 import { HIDE_EXIT_TICKS,limitHideLook } from './hide-view.js';
 import { adaptiveResolution,pixelRatio,presets,recommendedPreset } from './performance.js';
 import { aimAxis,bindJoystick,gyroControl,movementBits,padButtons,supportedPad } from './input.js';
@@ -80,8 +81,8 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
   const recommended=recommendedPreset({coarse:mobile,memory:navigator.deviceMemory,cores:navigator.hardwareConcurrency,
     texture:renderer.capabilities.maxTextureSize});
   let quality,frameTarget=1000/60,nextFrame=0,hudTick=0;
-  let online,netState,netKeys=0,netClock=0,netFrame=0,trapSignature='';
-  let solo=false,nextSave=0;
+  let online,netState,interrupted=false,netKeys=0,netClock=0,netFrame=0,trapSignature='';
+  let solo=false,nextSave=0,replay;
   let lastCover=null,hideEntry=null;
   const joystick=bindJoystick(document.querySelector('#joystick'),document.querySelector('#joystickThumb'),()=>ui.control('touch'));
   const gyro=gyroControl((x,y)=>look(x,y,settings.touchSensitivity),()=>mode==='play'&&settings.gyro&&ui.controlKind()==='touch');
@@ -122,13 +123,15 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     camera.aspect=w/h;camera.fov=w<h?Math.min(87,69+(1-w/h)*28):69;camera.updateProjectionMatrix();
   }
   function clearInput(){held.clear();joystick.reset();gyro.reset();dragging=false;touchLook=null;pending=0;slot=-1;lookX=0;lookY=0;accumulator=0;lastKeys=0;}
-  function begin(attempt=null,saved=null) {
+  function begin(attempt=null,saved=null,savedReplay=null) {
     audio.init();ranked=attempt;solo=!attempt;difficulty=attempt?.difficulty??saved?.difficulty??settings.difficulty;
     setupMap(hasMap(difficulty));ui.difficulty(difficulty);
     transition++;time=0;
     for(const d of world.doors){d.angle=0;d.pivot.rotation.y=0;}
     world.openGate(false);
-    sim=createSimulation(attempt?.seed??crypto.getRandomValues(new Uint32Array(1))[0],difficulty,
+    const seed=attempt?.seed??crypto.getRandomValues(new Uint32Array(1))[0];
+    replay=solo&&(!saved||savedReplay)?soloReplay(seed,difficulty,savedReplay):null;
+    sim=createSimulation(seed,difficulty,
       saved?structuredClone(saved.state):null,event);
     nextSave=12;
     if(sim.state.mode==='interlude') {
@@ -141,13 +144,15 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
   }
   function keepCheckpoint() {
     const value=checkpoint();
-    if(value)ui.checkpoint(value);
+    if(value)ui.checkpoint(value,replay?.snapshot());
   }
   function beginMatch(link) {
+    replay=null;
     audio.init();solo=false;online=link;netState=null;netKeys=0;transition++;time=0;previousArea='';
     setupMap(false);lastCover=null;hideEntry=null;
     clearInput();mode='play';audio.enable(true);ui.show('play');ui.matchConnection('Connecting to the house…');
-    link.start(receiveMatch,text=>ui.matchConnection(text));
+    interrupted=false;
+    link.start(receiveMatch,text=>{interrupted=Boolean(text);ui.matchConnection(text);});
     lock();
   }
   function receiveMatch(packet,roundtrip) {
@@ -281,7 +286,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
       const connection=online;
       endMatch();connection.leave();return;
     }
-    if(solo&&!preserve)ui.checkpoint(null,true);
+    if(solo&&!preserve)ui.checkpoint(null);
     solo=false;transition++;mode='menu';release();clearInput();audio.enable(false);
     ranked?.cancel();ranked=null;ui.show('menu');
   }
@@ -292,7 +297,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     mode='menu';release();clearInput();audio.enable(false);ui.match(null);
   }
   function finish(mode,data) {
-    if(solo){solo=false;ui.checkpoint(null,true);}
+    if(solo){ui.soloResult({...data,difficulty},replay?.snapshot());solo=false;ui.checkpoint(null);}
     release();clearInput();audio.enable(false);ui.show(mode,{...data,ranked:Boolean(ranked)});
     if(ranked) {
       ranked.finish().then(info=>ui.rankResult(info)).catch(error=>ui.rankResult(null,error.message));
@@ -313,6 +318,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
   }
   function applyInput(input) {
     ranked?.record(input);
+    replay?.record(input);
     sim.tick(input);
     if(sim.state.mode==='victory'&&mode==='play') {
       mode='victory';finish(mode,{route:sim.state.route,day:sim.state.day});
@@ -533,6 +539,7 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     root.rotation.y=snap?heading:root.rotation.y+Math.atan2(Math.sin(heading-root.rotation.y),Math.cos(heading-root.rotation.y))*Math.min(1,dt*17);
   }
   function matchInput(next) {
+    if(interrupted||!navigator.onLine)return;
     const p=sim.state.player,{me,timers}=netState;
     const canMove=me.status==='active'&&!netState.watch,granny=me.role==='granny';
     netKeys=canMove?next[0]:0;
@@ -688,5 +695,5 @@ export function createGame(canvas,ui,settings,audio=createAudio()) {
     return down?'Rescue '+down.name:sim.prompt();
   }
   configure();
-  return {begin,beginMatch,closeMatch:endMatch,resume,menu,pause,nextNight,configure,gyro,checkpoint,get mode(){return mode;}};
+  return {begin,beginMatch,closeMatch:endMatch,resume,menu,pause,nextNight,configure,gyro,checkpoint,get replay(){return replay?.snapshot();},get mode(){return mode;}};
 }

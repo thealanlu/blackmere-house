@@ -2,22 +2,22 @@ import {api} from './online.js';
 import {preferencePatch,sharedPreferences} from './preferences.js';
 import {validCheckpoint} from './checkpoint.js';
 
-const key=id=>'blackmere.checkpoint.'+(id??'guest');
-function load(id) {
-  try{
-    const value=JSON.parse(localStorage.getItem(key(id))??'null');
-    if(Number.isFinite(value?.updated)&&(value.checkpoint===null||validCheckpoint(value.checkpoint)))return value;
-  }catch{}
+import {readLocal,writeLocal} from './local-progress.js';
+
+const key=id=>'save:'+(id??'guest');
+const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+function saveEntry(value) {
+  if(Number.isFinite(value?.updated)&&(value.checkpoint===null||validCheckpoint(value.checkpoint))) {
+    return {...value,dirty:value.dirty??true};
+  }
   return null;
 }
-function store(id,value) {
-  try{localStorage.setItem(key(id),JSON.stringify(value));return true;}catch{return false;}
-}
+const load=async id=>saveEntry(await readLocal(key(id)));
 export function deviceData(apply,onStatus) {
-  let owner=null,queue={},edited=new Set(),timer,cloud=null,active,version=0;
+  let owner=null,queue={},edited=new Set(),timer,active,version=0;
   function account(id) {
     if(owner===id)return;
-    owner=id;queue={};edited=new Set();cloud=null;version++;
+    owner=id;queue={};edited=new Set();version++;
     clearTimeout(timer);
     if(id)preferences(id,version);
   }
@@ -52,36 +52,43 @@ export function deviceData(apply,onStatus) {
       edited.add(name);queue[name]=value;
       clearTimeout(timer);timer=setTimeout(send,750);
     },
-    read(id){return load(id);},
-    async refresh(id) {
-      if(!id||!navigator.onLine)return load(id);
-      try {
-        const next=await api('checkpoint');
-        if(owner!==id)return load(id);
-        cloud=next;
-        const local=load(id);
-        if(next.updated>(local?.updated??0)&&(next.checkpoint===null||validCheckpoint(next.checkpoint))) {
-          store(id,{checkpoint:next.checkpoint,updated:next.updated});return {checkpoint:next.checkpoint,updated:next.updated};
-        }
-      }catch{}
-      return load(id);
+    read:load,
+    async compare(id,source=id) {
+      if(!id||owner!==id||!navigator.onLine)return null;
+      const cloud=await api('checkpoint');
+      if(owner!==id)return null;
+      const previous=await readLocal(key(source));
+      const local=saveEntry(previous);
+      const differing=!same(local?.checkpoint??null,cloud.checkpoint);
+      if(source===id&&!local?.dirty&&differing) {
+        await writeLocal(key(id),{checkpoint:cloud.checkpoint,updated:cloud.updated,dirty:false},previous);
+      }
+      return {cloud,local,source,previous,conflict:Boolean(local?.dirty&&differing&&cloud.checkpoint),
+        pending:Boolean(local?.dirty&&local.checkpoint&&differing)};
     },
-    local(id,checkpoint){return store(id,{checkpoint,updated:Date.now()});},
-    async save(id,checkpoint) {
-      const saved=store(id,{checkpoint,updated:Date.now()});
-      if(!id||owner!==id||!navigator.onLine||!cloud) {
-        if(!saved)throw new Error('This device could not store the save.');
-        return false;
+    async local(id,checkpoint,replay) {
+      return writeLocal(key(id),{checkpoint,replay,updated:Date.now(),dirty:true});
+    },
+    async sync(id,comparison,choice) {
+      if(!id||owner!==id||!navigator.onLine||!comparison)throw new Error('Sign in and reconnect to sync this save.');
+      const {cloud,local,source,previous}=comparison;
+      const current=await load(source);
+      if(!same(current,local))throw new Error('The local save changed. Review the updated copies first.');
+      if(choice==='cloud') {
+        if(!cloud.checkpoint)throw new Error('There is no cloud save to restore.');
+        const latest=await api('checkpoint');
+        if(latest.revision!==cloud.revision||owner!==id||!same(await load(id),local))
+          throw new Error('A save changed. Review the updated copies first.');
+        if(local?.checkpoint&&!await writeLocal('backup:'+id,local)||!await writeLocal(key(id),{checkpoint:cloud.checkpoint,updated:cloud.updated,dirty:false},previous))
+          throw new Error('Could not save both copies on this device.');
+        return;
       }
-      try {
-        const next=await api('checkpoint',{method:'POST',data:{revision:cloud.revision,checkpoint}});
-        if(owner===id)cloud={...next,checkpoint};
-        store(id,{checkpoint,updated:next.updated});
-        return true;
-      }catch(error) {
-        if(!saved)throw error;
-        throw new Error(error.status===409?'Saved on this device. A newer cloud save is available.':'Saved on this device. Cloud sync is unavailable.');
-      }
-    }
+      if(!local?.checkpoint)throw new Error('There is no local checkpoint to upload.');
+      if(cloud.checkpoint&&!await writeLocal('backup:'+id,{...cloud,dirty:true}))
+        throw new Error('Could not make a backup of the cloud save.');
+      await api('checkpoint',{method:'POST',data:{owner:id,revision:cloud.revision,checkpoint:local.checkpoint}});
+      if(owner===id&&same(await load(source),local))await writeLocal(key(source),{...local,dirty:false},previous);
+    },
+    async backup(id){return (await readLocal('backup:'+id))?.checkpoint??null;}
   };
 }

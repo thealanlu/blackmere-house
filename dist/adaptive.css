@@ -177,3 +177,9 @@ html[data-controls="touch"] .battery-hud:not([hidden]){
   html[data-controls="touch"] .toast{bottom:calc(265px + var(--safe-bottom))}
 }
 html[data-nightmare="true"] .rotate-hint{left:50%;right:auto;transform:translateX(-50%);max-width:calc(100% - 35px)}
+
+.device-links{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px}
+.device-links button{min-height:38px}
+#offlineProgress{width:100%;height:9px;accent-color:#c7aa77}
+#offlineRecord .dialog-card{margin-block:12px}
+button[data-needs-online]:disabled{opacity:.46}

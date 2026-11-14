@@ -1,5 +1,7 @@
-import { itemInfo, levels, hasMap } from './rules.js';
-import { rankedAttempt } from './online.js';
+import { itemInfo, levels, hasMap, areaAt } from './rules.js';
+import {readLocal,writeLocal} from './local-progress.js';
+import {readRecord,recordResult,syncRecords} from './solo-record.js';
+import { rankedAttempt,api } from './online.js';
 import { bindSocial, timeLabel } from './social.js';
 import { bindMultiplayer } from './multiplayer.js';
 import { createAudio } from './audio.js';
@@ -10,13 +12,12 @@ import { requestGyro } from './input.js';
 import { configurePwa } from './pwa.js';
 
 const $=id=>document.getElementById(id);
-let saved={};
-try {saved=JSON.parse(localStorage.getItem('blackmere.settings')||'{}')||{};} catch {}
+const saved=await readLocal('settings')??{};
 const settings=normalizePreferences(saved,matchMedia('(prefers-reduced-motion: reduce)').matches);
 const screens=[...document.querySelectorAll('.screen')];
 const menuDialogs=new Map([...document.querySelectorAll('.menu-dialog')].map(dialog=>[dialog.id,dialog]));
 let view='menu',returnView='menu',dialogOrigin,game,gameModule,initializing,toastTimer,revealTimer,footstepTimer,footstepPulse;
-let threatLabel='',lastPrompt='',gyroAllowed=false,accountId=null,runOwner=null,continueSave,continueRequest=0,saveInFlight=false;
+let threatLabel='',lastPrompt='',gyroAllowed=false,accountId=null,runOwner=null,continueSave,guestSave,comparison,comparisonOwner,continueRequest=0,saveInFlight=false;
 const guestOnly=document.documentElement.dataset.edition==='guest';
 try{if(!guestOnly)accountId=localStorage.getItem('blackmere.deviceAccount');}catch{}
 const sound=createAudio();
@@ -35,6 +36,7 @@ social?.setAccountListener((id,reachable)=>{
   accountId=id;sync.account(id);
   try{if(id)localStorage.setItem('blackmere.deviceAccount',id);else localStorage.removeItem('blackmere.deviceAccount');}catch{}
   if(changed&&view==='dispatch')loadContinue();
+  if(changed&&view==='offlineRecord')loadRecord();
 });
 function warmGame() {
   gameModule??=import('./game.js').catch(error=>{gameModule=null;throw error;});
@@ -64,7 +66,7 @@ async function enableGyro() {
   game?.gyro.allow(gyroAllowed);
   $('motionStatus').textContent=gyroAllowed?'Gyroscope aim is enabled when using touch.':'Motion access is unavailable. You can still drag to look.';
 }
-function persistSettings(){try{localStorage.setItem('blackmere.settings',JSON.stringify(settings));}catch{}}
+function persistSettings(){writeLocal('settings',{...settings,updated:Date.now()});}
 function updateOptions() {
   for(const [key,value] of Object.entries(settings)) {
     const input=$(key);
@@ -163,10 +165,10 @@ const slots=Array.from({length:4},(_,i)=>{
 
 const ui={
   control:devices.mark,controlKind:devices.kind,
-  checkpoint(value,done=false) {
-    sync.local(runOwner,value);
-    if(done&&runOwner)sync.save(runOwner,null).catch(()=>{});
+  checkpoint(value,replay) {
+    sync.local(runOwner,value,replay).then(ok=>{if(!ok)ui.toast('Progress could not be saved. Free up browser storage.');});
   },
+  soloResult(result,replay) {recordResult(runOwner,result,replay).then(ok=>{if(!ok)ui.toast('Could not save this result on this device.');});},
   show(mode,data) {
     if(mode==='note'){$('noteTitle').textContent=data.name;$('noteText').textContent=data.body;}
     if(['interlude','victory','defeat'].includes(mode))result(mode,data);
@@ -278,6 +280,7 @@ function navigate(name,own=false) {
   switchTo(name);
   social?.open(name,own);
   if(name==='multiplayer')multiplayer?.open();
+  if(name==='offlineRecord')loadRecord();
   if(name==='dispatch') {
     warmGame().catch(()=>{});
     loadContinue();
@@ -288,7 +291,7 @@ function navigate(name,own=false) {
       $('rankedPlay').firstElementChild.textContent=social.profile?'Ranked run':social.user?'Create a profile to play ranked':'Log in to play ranked';
       $('rankedHelp').textContent=social.profile?'Verified runs count toward your record.':'A player profile is required to record a verified result.';
     };
-    update();social.session().then(update);
+    update();if(navigator.onLine)social.session().then(update);
   }
 }
 function back() {
@@ -298,6 +301,7 @@ function back() {
     if(view==='settings')sync.flush();
     switchTo(destination);
     if(destination==='multiplayer')multiplayer?.open();
+    if(destination==='dispatch')loadContinue();
   }
   else if(['dispatch','multiplayer'].includes(view))switchTo('menu');
   else if(['journal','note','pause'].includes(view))game?.resume();
@@ -307,25 +311,117 @@ function setRunDifficulty() {
   $('difficulty').value=settings.difficulty;
   persistSettings();
 }
+function saveLabel(checkpoint) {
+  const {state,difficulty}=checkpoint;
+  return 'Night '+state.day+' · '+levels[difficulty].label+' · '+areaAt(state.player.x,state.player.z);
+}
+async function checkSync(id) {
+  if(!id||!navigator.onLine)return null;
+  let next=await sync.compare(id);
+  const guest=await sync.read(null);
+  if(!next?.pending&&!next?.conflict&&guest?.checkpoint&&guest.dirty)next=await sync.compare(id,null);
+  return next;
+}
 async function loadContinue() {
   const generation=++continueRequest,id=accountId;
-  const display=value=>{
-    if(generation!==continueRequest||view!=='dispatch')return;
-    continueSave=value?.checkpoint;
-    $('continueSolo').hidden=$('soloDetail').hidden=!continueSave;
-    if(continueSave)$('soloDetail').textContent='Night '+continueSave.state.day+' · '+levels[continueSave.difficulty].label+' · Unranked';
+  const current=()=>generation===continueRequest&&view==='dispatch';
+  const display=async()=>{
+    const [local,guest]=await Promise.all([sync.read(id),id?sync.read(null):null]);
+    if(!current())return;
+    continueSave=local;guestSave=guest;
+    $('continueSolo').hidden=$('soloDetail').hidden=!local?.checkpoint;
+    $('resumeDevice').hidden=!guest?.checkpoint;
+    if(local?.checkpoint)$('soloDetail').textContent=saveLabel(local.checkpoint)+' · Unranked';
   };
-  display(sync.read(id));
-  display(await sync.refresh(id));
+  await display();
+  if(current())$('reviewSync').hidden=true;
+  try{
+    const next=await checkSync(id);
+    if(current())$('reviewSync').hidden=!(next?.pending||next?.conflict);
+    await display();
+  }catch{}
 }
-async function startSolo(checkpoint=null) {
-  const button=checkpoint?$('continueSolo'):$('guestPlay');
-  button.disabled=true;runOwner=accountId;
-  if(!checkpoint)setRunDifficulty();
-  $('playMessage').textContent='Preparing the house…';
-  const ready=await createGameOnce();
-  if(ready&&view==='dispatch'){ $('playMessage').textContent='';ready.begin(null,checkpoint);}
-  button.disabled=false;
+let recordRequest=0;
+async function loadRecord(message='') {
+  const request=++recordRequest,id=accountId;
+  comparison=null;comparisonOwner=null;
+  $('syncReview').hidden=$('syncRecord').hidden=$('cloudRecordText').hidden=true;
+  $('localSyncStatus').textContent=message;
+  const [local,guest,backup]=await Promise.all([readRecord(id),id?readRecord(null):null,sync.backup(id)]);
+  if(request!==recordRequest||view!=='offlineRecord')return;
+  const count=local.runs+(guest?.runs??0),escapes=local.escapes+(guest?.escapes??0);
+  const awards=[['front','Front door escape'],['drain','Storm drain escape'],['nightmare','Nightmare survivor']]
+    .filter(([key])=>local[key]||guest?.[key]).map(([,label])=>label);
+  $('localRecordText').textContent=count+' completed runs · '+escapes+' escapes'+(awards.length?' · '+awards.join(' · '):'');
+  $('resumeBackup').hidden=!backup;
+  $('resumeBackup').onclick=()=>{if(backup)resumeFrom({checkpoint:backup},id);};
+  if(!id||!navigator.onLine)return;
+  $('syncRecord').hidden=!(local.pending.length||guest?.pending.length);
+  try {
+    const next=await checkSync(id);
+    if(request!==recordRequest||accountId!==id||view!=='offlineRecord')return;
+    comparison=next;comparisonOwner=id;
+    if(next?.pending||next?.conflict) {
+      $('syncReview').hidden=false;
+      $('localCopy').textContent=next.local?.checkpoint?(next.source?'This device · ':'Guest save · ')+saveLabel(next.local.checkpoint):'No active checkpoint on this device.';
+      $('cloudCopy').textContent=next.cloud.checkpoint?'Account · '+saveLabel(next.cloud.checkpoint):'No account save yet.';
+      $('uploadSave').hidden=!next.pending;
+      $('uploadSave').textContent=next.conflict?'Replace Account Save':'Upload This Save';
+      $('restoreCloud').hidden=!next.conflict||next.source!==id;
+    }
+    const verified=await api('offline-record');
+    if(request!==recordRequest||accountId!==id||view!=='offlineRecord')return;
+    $('cloudRecordText').hidden=false;
+    $('cloudRecordText').textContent=verified.escapes+' verified personal offline escapes on your account.';
+  }catch{if(request===recordRequest&&!message)$('localSyncStatus').textContent='Could not reach your account. Your local progress is still available.';}
+}
+async function chooseSync(choice) {
+  const id=comparisonOwner,selected=comparison;
+  if(!id||!selected||saveInFlight)return;
+  saveInFlight=true;$('uploadSave').disabled=$('restoreCloud').disabled=true;
+  try {
+    await sync.sync(id,selected,choice);
+    if(view==='offlineRecord')loadRecord(choice==='cloud'?'Cloud save restored. The previous local save is available as a backup.':'Checkpoint uploaded to your account.');
+  }catch(error) {
+    if(view==='offlineRecord')loadRecord(error.status===409?'The account save changed. Review both copies again.':error.message);
+  }finally{saveInFlight=false;$('uploadSave').disabled=$('restoreCloud').disabled=false;}
+}
+$('uploadSave').onclick=()=>chooseSync('local');
+$('restoreCloud').onclick=()=>chooseSync('cloud');
+$('syncRecord').onclick=async()=>{
+  const button=$('syncRecord'),id=accountId;
+  if(!id||button.disabled||!navigator.onLine)return;
+  button.disabled=true;$('localSyncStatus').textContent='Verifying personal escape replays…';
+  try {
+    await syncRecords(id,[id,null]);
+    if(view==='offlineRecord')loadRecord('Personal record checked against the game replay.');
+  }catch(error){if(view==='offlineRecord')$('localSyncStatus').textContent=error.message;}
+  finally{button.disabled=false;}
+};
+async function resumeFrom(value,owner=accountId) {
+  switchTo('dispatch');
+  await startSolo(value,owner);
+}
+async function startSolo(value=null,owner=accountId) {
+  const button=value?$('continueSolo'):$('guestPlay');
+  if(button.disabled)return;
+  button.disabled=true;
+  try {
+    if(!value) {
+      const previous=await sync.read(owner);
+      if(previous?.checkpoint&&!confirm('Start a new run? Your current checkpoint will be kept as a backup.'))return;
+      if(previous?.checkpoint&&!await writeLocal('backup:'+(owner??'guest'),previous)) {
+        $('playMessage').textContent='Could not back up your current save. Free up browser storage to start a new run.';return;
+      }
+      setRunDifficulty();
+    }
+    runOwner=owner;
+    $('playMessage').textContent='Preparing the house…';
+    const ready=await createGameOnce();
+    if(ready&&view==='dispatch'){
+      $('playMessage').textContent='';ready.begin(null,value?.checkpoint,value?.replay?structuredClone(value.replay):null);
+    }
+  }finally{button.disabled=false;}
 }
 $('play').onclick=()=>navigate('dispatch');
 $('multiplayerPlay').onclick=()=>{
@@ -333,16 +429,16 @@ $('multiplayerPlay').onclick=()=>{
   else location.assign('https://blackmere-house.thealanlu.chatgpt.site/?multiplayer=1');
 };
 $('guestPlay').onclick=()=>startSolo();
-$('continueSolo').onclick=()=>{if(continueSave)startSolo(continueSave);};
+$('continueSolo').onclick=()=>{if(continueSave?.checkpoint)startSolo(continueSave);};
+$('resumeDevice').onclick=()=>{if(guestSave?.checkpoint)startSolo(guestSave,null);};
 $('saveSolo').onclick=async()=>{
   if(saveInFlight)return;
   const checkpoint=game?.checkpoint();
   if(!checkpoint)return;
   saveInFlight=true;$('saveSolo').disabled=true;$('saveStatus').textContent='Saving your place…';
   try {
-    const cloud=await sync.save(runOwner,checkpoint);
-    if(game.mode==='pause')game.menu(true);
-    $('saveStatus').textContent=cloud?'Saved to your account.':'Saved on this device.';
+    if(!await sync.local(runOwner,checkpoint,game.replay))throw new Error('This device could not store the save.');
+    if(game.mode==='pause'){game.menu(true);navigate('dispatch');$('playMessage').textContent='Saved on this device.';}
   }catch(error){$('saveStatus').textContent=error.message;}
   finally{saveInFlight=false;$('saveSolo').disabled=false;}
 };
@@ -358,7 +454,7 @@ if(social)$('rankedPlay').onclick=async()=>{
     const game=await pendingGame;
     if(game)game.begin(attempt);else attempt.cancel();
   }catch(error){$('playMessage').textContent=error.message;}
-  finally{button.disabled=false;}
+  finally{button.disabled=!navigator.onLine;}
 };
 for(const button of document.querySelectorAll('[data-open]'))button.addEventListener('click',()=>navigate(button.dataset.open,true));
 for(const button of document.querySelectorAll('[data-back]'))button.addEventListener('click',back);
@@ -378,6 +474,21 @@ document.addEventListener('keydown',event=>{
     event.preventDefault();back();
   }
 });
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden) {
+    const checkpoint=game?.checkpoint();
+    if(checkpoint)sync.local(runOwner,checkpoint,game.replay);
+  }
+});
 social?.initialize();
+addEventListener('online',async()=>{
+  await social?.initialize();
+  if(view==='dispatch')loadContinue();
+  if(view==='offlineRecord')loadRecord();
+  if(accountId&&view==='menu') {
+    try{const next=await checkSync(accountId);$('syncMenu').hidden=!(next?.pending||next?.conflict);}catch{}
+  }
+});
+addEventListener('offline',()=>{$('syncMenu').hidden=true;if(view==='offlineRecord')loadRecord();});
 configurePwa(navigate);
 if(multiplayer&&(multiplayer.hasInvite||new URLSearchParams(location.search).has('multiplayer')))navigate('multiplayer');

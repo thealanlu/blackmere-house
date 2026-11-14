@@ -1,47 +1,26 @@
 import {createHash} from 'node:crypto';
 import {readdir,readFile,writeFile} from 'node:fs/promises';
 
+const sha=data=>createHash('sha256').update(data).digest('hex');
+const workerSource=new URL('./offline-worker.js',import.meta.url);
+
 export async function buildPwa(output) {
-  const files=['index.html','style.css','multiplayer.css','adaptive.css','blackmere.webmanifest'];
-  for(const folder of ['src','vendor','assets']) {
-    const items=await readdir(new URL(folder+'/',output),{withFileTypes:true});
-    for(const item of items)if(item.isFile()&&/\.(?:js|png|webp|jpg)$/.test(item.name))files.push(folder+'/'+item.name);
-  }
-  files.sort();
-  const hash=createHash('sha256').update(await readFile(new URL(import.meta.url)));
-  for(const file of files)hash.update(file).update(await readFile(new URL(file,output)));
-  const worker=`
-const scope=new URL(self.registration.scope);
-const prefix='blackmere:'+scope.pathname+':';
-const name=prefix+${JSON.stringify(hash.digest('hex').slice(0,20))};
-const files=${JSON.stringify(files)};
-const paths=new Set(files.map(file=>new URL(file,scope).pathname));
-const home=new URL('index.html',scope);
-self.addEventListener('install',event=>{
-  event.waitUntil((async()=>{
-    const cache=await caches.open(name);
-    for(let i=0;i<files.length;i+=6){
-      await cache.addAll(files.slice(i,i+6).map(file=>new Request(new URL(file,scope),{cache:'reload'})));
+  const files=['index.html','style.css','multiplayer.css','adaptive.css','blackmere.webmanifest','third-party-notices.txt'];
+  async function collect(folder) {
+    for(const entry of await readdir(new URL(folder+'/',output),{withFileTypes:true})) {
+      const path=folder+'/'+entry.name;
+      if(entry.isDirectory())await collect(path);
+      else if(entry.isFile())files.push(path);
     }
-  })());
-});
-self.addEventListener('activate',event=>{
-  event.waitUntil((async()=>{
-    await Promise.all((await caches.keys()).filter(key=>key.startsWith(prefix)&&key!==name).map(key=>caches.delete(key)));
-    await self.clients.claim();
-  })());
-});
-self.addEventListener('fetch',event=>{
-  const request=event.request,url=new URL(request.url);
-  if(request.method!=='GET'||url.origin!==scope.origin)return;
-  const navigation=request.mode==='navigate'&&(url.pathname===scope.pathname||url.pathname===home.pathname);
-  if(!navigation&&!paths.has(url.pathname))return;
-  event.respondWith((async()=>{
-    const key=navigation?home:new URL(url.pathname,scope);
-    const cached=await (await caches.open(name)).match(key);
-    return cached??fetch(request);
-  })());
-});
-`;
-  await writeFile(new URL('sw.js',output),worker.trimStart());
+  }
+  for(const folder of ['src','vendor','assets'])await collect(folder);
+  const entries=await Promise.all(files.sort().map(async path=>{
+    const bytes=await readFile(new URL(path,output));
+    return {path,size:bytes.length,sha256:sha(bytes)};
+  }));
+  const source=await readFile(workerSource,'utf8');
+  const version=sha(source+JSON.stringify(entries)).slice(0,20);
+  const manifest={version,total:entries.reduce((sum,file)=>sum+file.size,0),files:entries};
+  await writeFile(new URL('offline-manifest.json',output),JSON.stringify(manifest)+'\n');
+  await writeFile(new URL('sw.js',output),'const manifest='+JSON.stringify(manifest)+';\n'+source);
 }

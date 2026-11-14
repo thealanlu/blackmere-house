@@ -41,6 +41,10 @@ function transport(room,onResult,onLeave,onClosed,voice) {
 
   async function exchange() {
     if(!active)return;
+    if(!navigator.onLine) {
+      connection('You’re offline · waiting to reconnect');
+      timer=setTimeout(exchange,600);return;
+    }
     const started=performance.now();
     if(!flight) {
       flight={...input,seq:known?++seq:0};
@@ -68,9 +72,17 @@ function transport(room,onResult,onLeave,onClosed,voice) {
       if(active)timer=setTimeout(exchange,retries?Math.min(1550,175*2**Math.min(retries,4)):Math.max(35,interval-(performance.now()-started)));
     }
   }
+  function interrupted() {
+    connection('You’re offline · waiting to reconnect');
+    input.keys=0;input.actions=0;input.slot=-1;voice?.talk(false);
+    if(flight){flight.keys=0;flight.actions=0;flight.slot=-1;}
+  }
   return {
-    start(onPacket,onNetwork){active=true;receive=onPacket;connection=onNetwork;exchange();},
-    stop(){active=false;clearTimeout(timer);controller?.abort();voice?.stop();},
+    start(onPacket,onNetwork){
+      active=true;receive=onPacket;connection=onNetwork;
+      addEventListener('offline',interrupted);exchange();
+    },
+    stop(){active=false;clearTimeout(timer);controller?.abort();voice?.stop();removeEventListener('offline',interrupted);},
     input(keys,yaw,pitch,actions,slot) {
       idling=false;
       input.keys=keys;input.yaw=Math.round(wrap(yaw)*1000);input.pitch=Math.round(pitch*1000);

@@ -44,16 +44,20 @@
       <p class="logline">Five nights to find a way out.<br>Every sound brings her closer.</p>
       <nav class="menu-actions" aria-label="Main menu">
         <button id="play" class="primary"><span>Single Player</span><svg><use href="#arrow"/></svg></button>
-        <button id="multiplayerPlay" class="secondary multiplayer-menu"><svg aria-hidden="true"><use href="#people"/></svg><span>Multiplayer</span><small>ONLINE</small></button>
+        <button id="multiplayerPlay" data-needs-online class="secondary multiplayer-menu"><svg aria-hidden="true"><use href="#people"/></svg><span>Multiplayer</span><small>ONLINE</small></button>
         <p id="offlineMenu" class="offline-menu" hidden>Offline · Single Player is available on this device.</p>
         <div class="menu-grid">
-          <button data-online-only data-open="leaderboards" class="menu-link"><svg><use href="#trophy"/></svg><span>Leaderboards</span></button>
-          <button data-online-only data-open="friends" class="menu-link"><svg><use href="#people"/></svg><span>Friends</span><small id="notificationBadge" hidden></small></button>
-          <button data-online-only data-open="profile" class="menu-link"><svg><use href="#profileIcon"/></svg><span>My Profile</span></button>
+          <button data-online-only data-needs-online data-open="leaderboards" class="menu-link"><svg><use href="#trophy"/></svg><span>Leaderboards</span></button>
+          <button data-online-only data-needs-online data-open="friends" class="menu-link"><svg><use href="#people"/></svg><span>Friends</span><small id="notificationBadge" hidden></small></button>
+          <button data-online-only data-needs-online data-open="profile" class="menu-link"><svg><use href="#profileIcon"/></svg><span>My Profile</span></button>
           <button data-open="settings" class="menu-link"><svg><use href="#settingsIcon"/></svg><span>Settings</span></button>
         </div>
-        <div class="menu-bottom"><button data-online-only data-open="auth" class="text-button" id="accountMenu">Log in / Sign up</button><button data-open="controls" class="text-button">How to Play</button><a class="text-button pages-only" href="https://blackmere-house.thealanlu.chatgpt.site/">Accounts &amp; leaderboards ↗</a></div>
-        <button type="button" class="text-button install-link" id="installGame" hidden>Install Blackmere House</button>
+        <div class="menu-bottom"><button data-online-only data-open="auth" class="text-button" id="accountMenu" data-needs-online>Log in / Sign up</button><button data-open="controls" class="text-button">How to Play</button><a class="text-button pages-only" href="https://blackmere-house.thealanlu.chatgpt.site/">Accounts &amp; leaderboards ↗</a></div>
+        <div class="device-links">
+          <button type="button" class="text-button" id="installGame" hidden>Install Game</button>
+          <button type="button" class="text-button" id="downloadOffline">Download Offline Content</button>
+          <button type="button" class="text-button" id="syncMenu" data-open="offlineRecord" hidden>Review Saves to Sync</button>
+        </div>
       </nav>
     </div>
     <footer class="menu-footer"><span>VOL. I <i></i> THE BLACKMERE RECORDS</span><span>HEADPHONES RECOMMENDED</span></footer>
@@ -65,12 +69,15 @@
       <p class="eyebrow amber">CHOOSE YOUR RUN</p><h2 id="dispatchTitle">Enter the House</h2>
       <label class="dispatch-difficulty">Difficulty <select id="playDifficulty" aria-label="Run difficulty"><option value="story">Easy</option><option value="normal">Normal</option><option value="dread">Hard</option><option value="nightmare">Nightmare</option></select></label>
       <div class="stack run-choices">
-        <button data-online-only id="rankedPlay" class="primary"><span>Ranked run</span><svg><use href="#arrow"/></svg></button>
+        <button data-online-only data-needs-online id="rankedPlay" class="primary"><span>Ranked run</span><svg><use href="#arrow"/></svg></button>
         <small data-online-only id="rankedHelp">A player profile is required to record a verified result.</small>
         <button id="guestPlay" class="secondary"><span class="pages-only">Begin run</span><span data-online-only>Guest run</span></button>
         <small>Play without recording statistics or ranking.</small>
         <button id="continueSolo" class="secondary" hidden>Continue Solo Save</button>
         <small id="soloDetail" hidden></small>
+        <button id="resumeDevice" class="secondary" hidden>Continue Guest Save</button>
+        <button type="button" class="text-button" data-open="offlineRecord">Local Saves &amp; Record</button>
+        <button type="button" class="text-button" id="reviewSync" data-open="offlineRecord" hidden>Review Saves to Sync</button>
       </div><p id="playMessage" class="feedback" aria-live="polite"></p>
     </div>
   </section>
@@ -134,7 +141,7 @@
             <button class="text-button" type="button" id="mpQueue">Find Players for Party</button>
             <p class="setting-detail">Filling empty seats makes this room public.</p>
           </section>
-          <section class="dialog-card mp-actions" id="mpFriendBox" hidden><div class="mp-section-title"><h3>Invite a friend</h3><button class="text-button" type="button" data-open="friends">Friends List</button></div><div id="mpFriendList" class="mp-list"></div></section>
+          <section class="dialog-card mp-actions" id="mpFriendBox" hidden><div class="mp-section-title"><h3>Invite a friend</h3><button class="text-button" type="button" data-needs-online data-open="friends">Friends List</button></div><div id="mpFriendList" class="mp-list"></div></section>
           <section class="dialog-card mp-wide" id="mpChatBox"><h3 id="mpChatTitle">Room chat</h3><ol id="mpChat" class="mp-list mp-chat" aria-live="polite"></ol>
             <form id="mpChatForm" class="mp-inline"><input id="mpChatText" aria-label="Message" maxlength="220" placeholder="Message the room" autocomplete="off" required><button class="secondary" type="submit">Send</button></form>
           </section>
@@ -414,8 +421,35 @@
     <div class="stack"><button type="button" class="primary" id="graphicsRetry">Retry on Low</button><button type="button" class="secondary" id="graphicsDismiss">Back to Game Menus</button></div>
   </div></section>
   <dialog id="installHelp" class="menu-dialog guide-dialog" aria-labelledby="installTitle">
-    <header class="dialog-chrome"><span><svg aria-hidden="true"><use href="#house"/></svg> Blackmere House <i></i> Home screen</span><button type="button" class="dialog-close" data-back aria-label="Close installation help"><svg aria-hidden="true"><use href="#closeIcon"/></svg></button></header>
-    <div class="dialog-body"><div class="dialog-intro"><h2 id="installTitle" tabindex="-1">Install Blackmere House</h2><p>In Safari on iPhone or iPad, open Share and choose Add to Home Screen. In other supported browsers, look for Install or Add to Home screen in the browser menu.</p></div><p>After the offline files finish downloading, you can play Single Player without a connection. Online matches and account features require internet access.</p><footer class="dialog-footer"><button type="button" class="primary" data-back>Done</button></footer></div>
+    <header class="dialog-chrome"><span><svg aria-hidden="true"><use href="#house"/></svg> Blackmere House <i></i> Home screen</span><button type="button" class="dialog-close" data-back aria-label="Close offline play"><svg aria-hidden="true"><use href="#closeIcon"/></svg></button></header>
+    <div class="dialog-body">
+      <div class="dialog-intro"><h2 id="installTitle" tabindex="-1">Offline Play</h2><p>Download the mansion once and play Single Player offline. On iPhone or iPad, use Safari’s Share menu and choose Add to Home Screen. On desktop and Android, look for Install or Add to Home Screen in your browser menu.</p></div>
+      <p id="offlineStatus" role="status">Checking offline files…</p>
+      <progress id="offlineProgress" aria-label="Verified offline files" value="0" max="1"></progress>
+      <p id="offlineStorage" class="setting-detail"></p>
+      <footer class="dialog-footer"><button type="button" class="primary" id="repairOffline">Download / Repair</button><button type="button" class="secondary" data-back>Done</button></footer>
+    </div>
+  </dialog>
+  <dialog id="offlineRecord" class="menu-dialog guide-dialog" aria-labelledby="offlineRecordTitle">
+    <header class="dialog-chrome"><span>Blackmere House</span><button type="button" class="dialog-close" data-back aria-label="Close local saves"><svg aria-hidden="true"><use href="#closeIcon"/></svg></button></header>
+    <div class="dialog-body">
+      <div class="dialog-intro"><h2 id="offlineRecordTitle" tabindex="-1">Local Saves &amp; Record</h2><p>Personal offline escapes can be verified after you reconnect. They stay separate from global rankings.</p></div>
+      <p id="localRecordText"></p>
+      <p id="cloudRecordText" hidden></p>
+      <section class="dialog-card" id="syncReview" hidden>
+        <h3>Choose a save</h3><p id="localCopy"></p><p id="cloudCopy"></p>
+        <div class="stack">
+          <button type="button" id="uploadSave" class="primary">Upload This Save</button>
+          <button type="button" id="restoreCloud" class="secondary" hidden>Use Cloud Save</button>
+        </div>
+      </section>
+      <p id="localSyncStatus" class="feedback" role="status"></p>
+      <footer class="dialog-footer">
+        <button type="button" id="syncRecord" class="secondary" hidden>Sync Personal Record</button>
+        <button type="button" id="resumeBackup" class="secondary" hidden>Continue Backup</button>
+        <button type="button" class="text-button" data-back>Done</button>
+      </footer>
+    </div>
   </dialog>
   <script type="module" src="src/main.js"></script>
 </body>

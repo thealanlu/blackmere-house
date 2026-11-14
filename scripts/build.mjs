@@ -8,7 +8,7 @@ const {validateMansion}=await import('./validate-level.mjs');
 validateMansion();
 await buildPwa(new URL('../dist/',import.meta.url));
 
-const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8',
+const types={'.json':'application/json; charset=utf-8','.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8',
   '.txt':'text/plain; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.webmanifest':'application/manifest+json'};
 const assets=Object.create(null);
 async function walk(directory,prefix='') {

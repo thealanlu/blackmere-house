@@ -25,6 +25,7 @@ export async function deviceSync(request,env,path,profile) {
   }
   await limit(db,'checkpoint:'+id,18);
   const d=await body(request,36_000);
+  if(d.owner!==undefined&&d.owner!==id)fail(409,'The signed-in account changed. Review your saves again.');
   if(!Number.isSafeInteger(d.revision)||d.revision<0||!(d.checkpoint===null||validCheckpoint(d.checkpoint)))fail(400,'This solo save is unavailable.');
   await write(db,'INSERT OR IGNORE INTO player_devices(player) VALUES (?)',id);
   const now=Date.now();
